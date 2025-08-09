@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+  <title>Quixit (Qix-like) - Phaser</title>
+  <style>
+    html, body { margin:0; padding:0; background:#0b0f1a; height:100%; }
+    #game-container { width:100vw; height:100vh; overflow:hidden; }
+    .hud { position: absolute; top: 10px; left: 10px; color: #e0e6f0; font-family: system-ui, Segoe UI, Roboto, sans-serif; font-size: 14px; background: rgba(0,0,0,0.35); padding: 8px 10px; border-radius: 10px; backdrop-filter: blur(4px); }
+    .hint { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); color:#a9b6c8; font-family: system-ui, Segoe UI, Roboto, sans-serif; font-size: 13px; opacity:.9; background: rgba(0,0,0,.25); padding: 6px 10px; border-radius: 10px; }
+    .overlay { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.5); color:#e0e6f0; font-family: system-ui, Segoe UI, Roboto, sans-serif; }
+    .overlay .card { background: rgba(9,16,29,.9); padding: 18px 22px; border-radius: 12px; text-align: center; }
+    .overlay .title { font-size: 20px; margin-bottom: 8px; }
+    .overlay .sub { font-size: 13px; color:#9fb0c6; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.0/dist/phaser.min.js"></script>
+</head>
+<body>
+  <div id="game-container"></div>
+  <div class="hud" id="hud"></div>
+  <div class="hint">Frecce/WASD per muovere. Spazio/tap per disegnare; torna alla cornice per chiudere. R per restart. v0.4</div>
+  <div class="overlay" id="overlay">
+    <div class="card">
+      <div class="title" id="ov-title">Game Over</div>
+      <div class="sub">Premi R per ricominciare</div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // CONFIG
+  const W = 800, H = 600;
+  const PLAY_RECT = { x: 60, y: 40, w: 680, h: 520 };
+  const CELL = 10;
+  const SPEED = 220;                   // player px/s
+  const PLAYER_SIZE = 12;
+  const enemySpeed = 200;
+  const enemyRadius = 11;              // r ~ enemy.svg (22px/2)
+
+  // STATE
+  const STATE = { onFrame:true, drawing:false, path:[], fills:[], coveredArea:0, gameOver:false };
+  const dirs = { up:{x:0,y:-1}, down:{x:0,y:1}, left:{x:-1,y:0}, right:{x:1,y:0} };
+  let cursDir = {x:1,y:0};
+
+  // Phaser
+  const config = {
+    type: Phaser.AUTO, parent:'game-container', width:W, height:H, backgroundColor:'#09101d',
+    physics:{ default:'arcade', arcade:{ debug:false } },
+    scene:{ preload, create, update }
+  };
+  const game = new Phaser.Game(config);
+
+  // Scene vars
+  let gfx, cursors, keys, keySpace, pointerActive=false, lastSnapTime=0, lastTickLog=0;
+  const overlay = document.getElementById('overlay');
+
+  // Player as coords + sprite on top
+  // const player = { x: PLAY_RECT.x, y: PLAY_RECT.y };
+  const player = { x: PLAY_RECT.x, y: PLAY_RECT.y + PLAY_RECT.h / 2 };
+  let playerSprite;
+
+  // Enemy sprite + velocity
+  let enemy, enemyVel = {x: 160, y: 140};
+
+  // DEBUG overlay
+  let debugMsgEl;
+  function dbg(msg){
+    if(!debugMsgEl){
+      debugMsgEl = document.createElement('div');
+      debugMsgEl.style.position='absolute'; debugMsgEl.style.right='10px'; debugMsgEl.style.top='10px';
+      debugMsgEl.style.background='rgba(0,0,0,.45)'; debugMsgEl.style.color='#e0e6f0';
+      debugMsgEl.style.padding='6px 8px'; debugMsgEl.style.borderRadius='8px'; debugMsgEl.style.font='12px system-ui, Segoe UI, Roboto, sans-serif';
+      document.body.appendChild(debugMsgEl);
+    }
+    debugMsgEl.textContent = String(msg);
+  }
+  window.addEventListener('keydown', e => { if(e.code) dbg(`key: ${e.code}`); });
+
+  // PRELOAD
+  function preload(){
+    this.load.image('player', 'assets/player.svg');
+    this.load.image('enemy', 'assets/enemy.svg');
+  }
+
+  // CREATE
+  function create(){
+    dbg('scene create');
+
+    gfx = this.add.graphics();
+    gfx.setDepth(1); // fondo
+
+    // input
+    cursors = this.input.keyboard.createCursorKeys();
+    keys = this.input.keyboard.addKeys({
+      W: Phaser.Input.Keyboard.KeyCodes.W,
+      A: Phaser.Input.Keyboard.KeyCodes.A,
+      S: Phaser.Input.Keyboard.KeyCodes.S,
+      D: Phaser.Input.Keyboard.KeyCodes.D,
+      SPACE: Phaser.Input.Keyboard.KeyCodes.SPACE,
+      R: Phaser.Input.Keyboard.KeyCodes.R
+    });
+    keySpace = keys.SPACE;
+
+    this.input.on('pointerdown', () => { if (STATE.gameOver) return; pointerActive = true; if (STATE.onFrame && !STATE.drawing) startDrawing(); });
+    this.input.on('pointerup',   () => { pointerActive = false; });
+    this.input.on('pointermove', (p) => {
+      if (!pointerActive || STATE.gameOver) return;
+      const dx=p.worldX-player.x, dy=p.worldY-player.y;
+      cursDir = Math.abs(dx)>Math.abs(dy) ? (dx>0?dirs.right:dirs.left) : (dy>0?dirs.down:dirs.up);
+    });
+
+    // Player sprite (sopra la grafica)
+    playerSprite = this.add.image(player.x, player.y, 'player');
+    playerSprite.setOrigin(0.5);
+    playerSprite.setDisplaySize(PLAYER_SIZE, PLAYER_SIZE);
+    playerSprite.setDepth(10);
+
+    // Nemico
+    placeEnemyRandom(this);
+
+    // piccola animazione sul player (bounce leggerissimo) per visibilità
+    this.tweens.add({ targets: playerSprite, duration: 1200, scale: 1.06, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+
+    drawScene(this);
+  }
+
+  function placeEnemyRandom(scene){
+    const ex = Phaser.Math.Between(PLAY_RECT.x + 60, PLAY_RECT.x + PLAY_RECT.w - 60);
+    const ey = Phaser.Math.Between(PLAY_RECT.y + 60, PLAY_RECT.y + PLAY_RECT.h - 60);
+    if (!enemy) {
+      enemy = scene.add.image(ex, ey, 'enemy').setOrigin(0.5).setDepth(5);
+      scene.tweens.add({ targets: enemy, duration: 900, scale: 1.15, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    } else {
+      enemy.setPosition(ex, ey);
+    }
+    const ang = Phaser.Math.FloatBetween(0, Math.PI*2);
+    enemyVel.x = Math.cos(ang) * enemySpeed;
+    enemyVel.y = Math.sin(ang) * enemySpeed;
+  }
+
+  // UPDATE
+  let lastDir = 'R';
+  function update(time, dtMs){
+    if (STATE.gameOver) {
+      if (Phaser.Input.Keyboard.JustDown(keys.R)) restartGame(this);
+      drawScene(this);
+      return;
+    }
+
+    if (time - lastTickLog > 1000) { dbg(`tick ${Math.round(time/1000)}s`); lastTickLog = time; }
+
+    handleKeyboardDirection();
+
+    movePlayer(dtMs / 1000);
+    if (time - lastSnapTime > 20) { snapToGrid(); lastSnapTime = time; }
+
+    if (Phaser.Input.Keyboard.JustDown(keySpace)) {
+      if (STATE.onFrame && !STATE.drawing) startDrawing();
+    }
+
+    moveEnemy(dtMs / 1000);
+
+    if (STATE.drawing && enemyHitsCurrentPath()) triggerGameOver();
+
+    // sync sprite positions
+    playerSprite.setPosition(player.x, player.y);
+
+    drawScene(this);
+  }
+
+  function handleKeyboardDirection(){
+    const prev = lastDir;
+    if (cursors.left.isDown || keys.A.isDown)       { cursDir = dirs.left;  lastDir='L'; }
+    else if (cursors.right.isDown || keys.D.isDown) { cursDir = dirs.right; lastDir='R'; }
+    else if (cursors.up.isDown || keys.W.isDown)    { cursDir = dirs.up;    lastDir='U'; }
+    else if (cursors.down.isDown || keys.S.isDown)  { cursDir = dirs.down;  lastDir='D'; }
+    if (lastDir !== prev) dbg(`dir: ${lastDir}`);
+  }
+
+  // MOVEMENT
+  function movePlayer(sec){
+    const nx = player.x + cursDir.x * SPEED * sec;
+    const ny = player.y + cursDir.y * SPEED * sec;
+    const minX = PLAY_RECT.x - 1, maxX = PLAY_RECT.x + PLAY_RECT.w + 1;
+    const minY = PLAY_RECT.y - 1, maxY = PLAY_RECT.y + PLAY_RECT.h + 1;
+    const p = { x: Phaser.Math.Clamp(nx, minX, maxX), y: Phaser.Math.Clamp(ny, minY, maxY) };
+
+    if (!STATE.drawing) {
+      const edge = projectToFrame(p.x, p.y);
+      player.x = edge.x; player.y = edge.y;
+      STATE.onFrame = true;
+    } else {
+      const inside = inRect(p.x, p.y, PLAY_RECT);
+      if (!inside) {
+        const hit = projectToFrame(p.x, p.y);
+        player.x = hit.x; player.y = hit.y;
+        STATE.onFrame = true;
+        finishDrawing();
+        return;
+      } else {
+        player.x = p.x; player.y = p.y;
+        STATE.onFrame = false;
+        pushPathPoint(player.x, player.y);
+      }
+    }
+  }
+
+  function moveEnemy(sec){
+    enemy.x += enemyVel.x * sec;
+    enemy.y += enemyVel.y * sec;
+
+    const left = PLAY_RECT.x + enemyRadius;
+    const right = PLAY_RECT.x + PLAY_RECT.w - enemyRadius;
+    const top = PLAY_RECT.y + enemyRadius;
+    const bottom = PLAY_RECT.y + PLAY_RECT.h - enemyRadius;
+
+    let bounced = false;
+    if (enemy.x <= left)   { enemy.x = left;   enemyVel.x = Math.abs(enemyVel.x);   bounced = true; }
+    else if (enemy.x >= right) { enemy.x = right; enemyVel.x = -Math.abs(enemyVel.x); bounced = true; }
+
+    if (enemy.y <= top)    { enemy.y = top;    enemyVel.y = Math.abs(enemyVel.y);   bounced = true; }
+    else if (enemy.y >= bottom){ enemy.y = bottom; enemyVel.y = -Math.abs(enemyVel.y); bounced = true; }
+
+    if (bounced) {
+      const angle = Math.atan2(enemyVel.y, enemyVel.x);
+      const jitter = Phaser.Math.DegToRad(Phaser.Math.Between(-20, 20));
+      const newAngle = angle + jitter;
+      enemyVel.x = Math.cos(newAngle) * enemySpeed;
+      enemyVel.y = Math.sin(newAngle) * enemySpeed;
+    }
+  }
+
+  // DRAWING FLOW
+  function startDrawing(){
+    STATE.drawing = true;
+    STATE.onFrame = false;
+
+    const p0 = { x: player.x, y: player.y };
+    const inward = inwardDirFromEdge(p0);
+    const dir = (inward.x || inward.y) ? inward : {x:0,y:1};
+    const p1 = { x: p0.x + dir.x * CELL, y: p0.y + dir.y * CELL };
+
+    cursDir = dir;
+    STATE.path = [ snapPoint(p0.x, p0.y), snapPoint(p1.x, p1.y) ];
+    player.x = STATE.path[1].x;
+    player.y = STATE.path[1].y;
+  }
+
+  function pushPathPoint(x, y){
+    const last = STATE.path[STATE.path.length - 1];
+    const s = snapPoint(x, y);
+    if (!last || last.x !== s.x || last.y !== s.y) {
+      STATE.path.push(s);
+    }
+  }
+
+  function finishDrawing(){
+    STATE.drawing = false; if (STATE.path.length < 2) return;
+    const start = STATE.path[0];
+    const end = { x: player.x, y: player.y };
+    const arc = shortestFrameArc(start, end);
+    const poly = [...STATE.path, ...arc];
+    const area = Math.abs(polygonArea(poly));
+    STATE.fills.push(poly);
+    STATE.coveredArea += area;
+    STATE.path = [];
+  }
+
+  // COLLISION: enemy vs current path
+  function enemyHitsCurrentPath(){
+    const cx = enemy.x, cy = enemy.y, r = enemyRadius + 1;
+    const segs = [];
+    for (let i=0;i<STATE.path.length-1;i++){
+      segs.push([STATE.path[i], STATE.path[i+1]]);
+    }
+    if (STATE.path.length >= 1){
+      const last = STATE.path[STATE.path.length-1];
+      segs.push([last, {x:player.x, y:player.y}]);
+    }
+    for (const [a,b] of segs){
+      if (circleSegmentHit(cx, cy, r, a.x, a.y, b.x, b.y)) return true;
+    }
+    return false;
+  }
+
+  function circleSegmentHit(cx, cy, r, x1, y1, x2, y2){
+    const dist = pointSegmentDistance(cx, cy, x1, y1, x2, y2);
+    return dist <= r;
+  }
+  function pointSegmentDistance(px, py, x1, y1, x2, y2){
+    const vx = x2 - x1, vy = y2 - y1;
+    const wx = px - x1, wy = py - y1;
+    const vv = vx*vx + vy*vy;
+    let t = 0;
+    if (vv > 0) t = (wx*vx + wy*vy) / vv;
+    t = Math.max(0, Math.min(1, t));
+    const projx = x1 + t * vx, projy = y1 + t * vy;
+    return Math.hypot(px - projx, py - projy);
+  }
+
+  // GAME OVER / RESTART
+  function triggerGameOver(){
+    STATE.gameOver = true;
+    overlay.style.display = 'flex';
+  }
+  function restartGame(scene){
+    STATE.gameOver = false;
+    overlay.style.display = 'none';
+    STATE.drawing = false; STATE.onFrame = true; STATE.path=[]; STATE.fills=[]; STATE.coveredArea=0;
+    player.x = PLAY_RECT.x; player.y = PLAY_RECT.y; cursDir = {x:1,y:0};
+    placeEnemyRandom(scene);
+  }
+
+  // RENDER
+  function drawScene(scene){
+    gfx.clear();
+
+    // cornice
+    gfx.lineStyle(2, 0x334155, 1);
+    gfx.strokeRect(PLAY_RECT.x, PLAY_RECT.y, PLAY_RECT.w, PLAY_RECT.h);
+
+    // riempimenti
+    for (const poly of STATE.fills){
+      gfx.fillStyle(0x1d4ed8, 0.35);
+      gfx.beginPath();
+      gfx.moveTo(poly[0].x, poly[0].y);
+      for (let i=1;i<poly.length;i++) gfx.lineTo(poly[i].x, poly[i].y);
+      gfx.closePath();
+      gfx.fillPath();
+      gfx.lineStyle(1, 0x60a5fa, 0.8);
+      gfx.strokePath();
+    }
+
+    // path corrente + puntini
+    if (STATE.drawing && STATE.path.length > 0){
+      gfx.lineStyle(2, 0xf59e0b, 1);
+      gfx.beginPath();
+      gfx.moveTo(STATE.path[0].x, STATE.path[0].y);
+      for (let i=1;i<STATE.path.length;i++) gfx.lineTo(STATE.path[i].x, STATE.path[i].y);
+      gfx.lineTo(player.x, player.y);
+      gfx.strokePath();
+
+      for (const pt of STATE.path){
+        gfx.fillStyle(0xffcc66, 1);
+        gfx.fillRect(pt.x - 2, pt.y - 2, 4, 4);
+      }
+      gfx.fillStyle(0xffcc66, 1);
+      gfx.fillRect(player.x - 2, player.y - 2, 4, 4);
+    }
+
+    // HUD
+		const totalArea = PLAY_RECT.w * PLAY_RECT.h;
+		const raw = totalArea ? (STATE.coveredArea / totalArea) * 100 : 0;
+		const pct = Math.min(100, isFinite(raw) ? raw : 0);
+		document.getElementById('hud').textContent = `Area coperta: ${pct.toFixed(1)}%`;
+  }
+
+  // GEOMETRY UTILS
+  function inRect(x, y, r){ return x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h; }
+  function snapPoint(x, y){ return { x: Math.round(x / CELL) * CELL, y: Math.round(y / CELL) * CELL }; }
+  function snapToGrid(){ const s = snapPoint(player.x, player.y); player.x = s.x; player.y = s.y; }
+  function projectToFrame(x, y){
+    const left   = { x: PLAY_RECT.x,               y: Phaser.Math.Clamp(y, PLAY_RECT.y, PLAY_RECT.y + PLAY_RECT.h) };
+    const right  = { x: PLAY_RECT.x + PLAY_RECT.w, y: Phaser.Math.Clamp(y, PLAY_RECT.y, PLAY_RECT.y + PLAY_RECT.h) };
+    const top    = { x: Phaser.Math.Clamp(x, PLAY_RECT.x, PLAY_RECT.x + PLAY_RECT.w), y: PLAY_RECT.y };
+    const bottom = { x: Phaser.Math.Clamp(x, PLAY_RECT.x, PLAY_RECT.x + PLAY_RECT.w), y: PLAY_RECT.y + PLAY_RECT.h };
+    const c = [left, right, top, bottom].map(snapPoint);
+    c.sort((a,b) => (a.x-x)**2 + (a.y-y)**2 - ((b.x-x)**2 + (b.y-y)**2));
+    return c[0];
+  }
+  function pointOnWhichEdge(p){
+    const eps = 0.5;
+    if (Math.abs(p.x - PLAY_RECT.x) < eps) return 'L';
+    if (Math.abs(p.x - (PLAY_RECT.x + PLAY_RECT.w)) < eps) return 'R';
+    if (Math.abs(p.y - PLAY_RECT.y) < eps) return 'T';
+    if (Math.abs(p.y - (PLAY_RECT.y + PLAY_RECT.h)) < eps) return 'B';
+    return 'N';
+  }
+  function inwardDirFromEdge(p){
+    const e = pointOnWhichEdge(p);
+    if (e === 'T') return {x:0,y:1};
+    if (e === 'B') return {x:0,y:-1};
+    if (e === 'L') return {x:1,y:0};
+    if (e === 'R') return {x:-1,y:0};
+    return {x:0,y:0};
+  }
+  function shortestFrameArc(start, end){
+    const per = 2 * (PLAY_RECT.w + PLAY_RECT.h);
+    const tOf = (p) => {
+      const e = pointOnWhichEdge(p);
+      if (e === 'T') return (p.x - PLAY_RECT.x);
+      if (e === 'R') return PLAY_RECT.w + (p.y - PLAY_RECT.y);
+      if (e === 'B') return PLAY_RECT.w + PLAY_RECT.h + (PLAY_RECT.x + PLAY_RECT.w - p.x);
+      if (e === 'L') return PLAY_RECT.w + 2*PLAY_RECT.h + (PLAY_RECT.y + PLAY_RECT.h - p.y);
+      return 0;
+    };
+    const unmapT = (t) => {
+      const w = PLAY_RECT.w, h = PLAY_RECT.h, x0 = PLAY_RECT.x, y0 = PLAY_RECT.y;
+      if (t <= w) return { x: x0 + t, y: y0 };
+      t -= w;
+      if (t <= h) return { x: x0 + w, y: y0 + t };
+      t -= h;
+      if (t <= w) return { x: x0 + w - t, y: y0 + h };
+      t -= w;
+      return { x: x0, y: y0 + h - t };
+    };
+    const ts = tOf(start), te = tOf(end);
+    const d1 = Math.abs(te - ts);
+    const d2 = per - d1;
+    const step = CELL;
+    const addAlong = (fromT, dist, clockwise) => {
+      const pts = [], dir = clockwise ? 1 : -1;
+      const steps = Math.max(1, Math.round(dist / step));
+      for (let i=1;i<=steps;i++){
+        const t = (fromT + dir * (i * step)) % per;
+        const tt = (t + per) % per;
+        pts.push(unmapT(tt));
+      }
+      return pts;
+    };
+    const arc = d1 <= d2 ? addAlong(ts, d1, te > ts) : addAlong(ts, d2, !(te > ts));
+    arc.push({ x: end.x, y: end.y });
+    return arc.map(snapPoint);
+  }
+  function polygonArea(poly){
+    let a = 0;
+    for (let i=0;i<poly.length;i++){
+      const j = (i+1)%poly.length;
+      a += poly[i].x * poly[j].y - poly[j].x * poly[i].y;
+    }
+    return a/2;
+  }
+})();
+</script>
+</body>
+</html>

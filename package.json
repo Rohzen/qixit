@@ -1,0 +1,25 @@
+{
+  "name": "quixit",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "cap:init": "cap init quixit com.example.quixit --web-dir=. || true",
+    "cap:add:android": "cap add android || true",
+    "cap:open:android": "cap open android",
+    "cap:sync": "cap sync",
+    "cap:copy": "cap copy"
+  },
+  "devDependencies": {
+    "vite": "^5.3.0"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.0.0"
+  },
+  "optionalDependencies": {
+    "@capacitor/cli": "^6.0.0"
+  }
+}
