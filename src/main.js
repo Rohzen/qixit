@@ -20,16 +20,15 @@ const player = new Player(app);
 const enemy  = new Enemy(app);
 const game   = new Game(app, player, enemy);
 
-let last = performance.now();
-app.ticker.add(() => {
-  const now = performance.now();
-  const dt = Math.min(0.05, (now - last) / 1000);
-  last = now;
-
+app.ticker.add((ticker) => {
+  const dt = Math.max(0.0001, Math.min(0.06, ticker.deltaMS / 1000));
   const { dir, startDraw, restart } = input.update();
 
   if (STATE.gameOver && restart) {
-    Object.assign(STATE, { onFrame:true, drawing:false, path:[], fills:[], coveredArea:0, gameOver:false });
+    Object.assign(STATE, {
+      onFrame:true, drawing:false, path:[], fills:[], coveredArea:0,
+      score: 0, lives: 3, gameOver:false
+    });
     player.x = 60; player.y = 40 + 520/2;
   }
 
@@ -38,10 +37,16 @@ app.ticker.add(() => {
 
     const action = player.update(dt, dir, STATE.drawing, STATE);
     if (STATE.drawing) {
-      if (action === 'push') game.pushPathPoint(player.x, player.y);
-      if (action === 'finish') game.finishDrawing();
+      if (game.checkEnemyHitPath()) {
+        game.onTrailHit(); // perdi una vita e abortisci la chiusura
+      } else {
+        if (action === 'push')   game.pushPathPoint(player.x, player.y);
+        if (action === 'finish') game.finishDrawing();
+      }
     }
-    player.applySnap();
+
+    // snap edge-aware solo sul bordo
+    player.applySnap(STATE.onFrame);
     player.setColorTint(STATE.drawing);
     player.syncSprite();
 

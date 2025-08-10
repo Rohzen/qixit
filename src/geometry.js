@@ -1,3 +1,4 @@
+// src/geometry.js
 import { CELL, PLAY_RECT } from "./state.js";
 
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
