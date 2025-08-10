@@ -82,9 +82,11 @@
     // Load SVG assets explicitly so Phaser can rasterize them and
     // provide proper texture dimensions. Using the dedicated `svg`
     // loader avoids zero-sized textures that caused the player to be
-    // invisible and prevented movement updates.
-    this.load.svg('player', 'assets/player.svg');
-    this.load.svg('enemy', 'assets/enemy.svg');
+    // invisible and prevented movement updates. Explicit dimensions
+    // ensure the generated textures have the correct size across
+    // environments.
+    this.load.svg('player', 'assets/player.svg', { width: 24, height: 24 });
+    this.load.svg('enemy', 'assets/enemy.svg', { width: 22, height: 22 });
   }
 
   // CREATE
