@@ -9,9 +9,9 @@ export class Input {
     window.addEventListener('keyup',   (e) => { this.keys[e.code] = false; });
 
     let pointerDown = false;
-    app.view.addEventListener('pointerdown', () => { pointerDown = true; });
-    app.view.addEventListener('pointerup',   () => { pointerDown = false; });
-    app.view.addEventListener('pointermove', (e) => {
+    app.canvas.addEventListener('pointerdown', () => { pointerDown = true; });
+    app.canvas.addEventListener('pointerup',   () => { pointerDown = false; });
+    app.canvas.addEventListener('pointermove', (e) => {
       if (!pointerDown) return;
       const dx = e.movementX, dy = e.movementY;
       if (Math.abs(dx) > Math.abs(dy)) this.dir = dx > 0 ? dirs.right : dirs.left;

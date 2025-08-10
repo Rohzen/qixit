@@ -63,32 +63,34 @@ export class Game {
     const g = this.gfx;
     g.clear();
 
-    g.lineStyle(2, 0x334155, 1);
-    g.drawRect(PLAY_RECT.x, PLAY_RECT.y, PLAY_RECT.w, PLAY_RECT.h);
+    g.rect(PLAY_RECT.x, PLAY_RECT.y, PLAY_RECT.w, PLAY_RECT.h)
+      .stroke({ width: 2, color: 0x334155, alpha: 1 });
 
     for (const poly of STATE.fills) {
-      g.beginFill(0x1d4ed8, 0.35);
+      g.beginPath();
       g.moveTo(poly[0].x, poly[0].y);
-      for (let i=1; i<poly.length; i++) g.lineTo(poly[i].x, poly[i].y);
-      g.closePath(); g.endFill();
-
-      g.lineStyle(1, 0x60a5fa, 0.8);
-      g.moveTo(poly[0].x, poly[0].y);
-      for (let i=1; i<poly.length; i++) g.lineTo(poly[i].x, poly[i].y);
+      for (let i = 1; i < poly.length; i++) g.lineTo(poly[i].x, poly[i].y);
       g.closePath();
+      g.fill({ color: 0x1d4ed8, alpha: 0.35 });
+
+      g.beginPath();
+      g.moveTo(poly[0].x, poly[0].y);
+      for (let i = 1; i < poly.length; i++) g.lineTo(poly[i].x, poly[i].y);
+      g.closePath();
+      g.stroke({ width: 1, color: 0x60a5fa, alpha: 0.8 });
     }
 
     if (STATE.drawing && STATE.path.length > 0) {
-      g.lineStyle(2, 0xf59e0b, 1);
+      g.beginPath();
       g.moveTo(STATE.path[0].x, STATE.path[0].y);
-      for (let i=1;i<STATE.path.length;i++) g.lineTo(STATE.path[i].x, STATE.path[i].y);
+      for (let i = 1; i < STATE.path.length; i++) g.lineTo(STATE.path[i].x, STATE.path[i].y);
       g.lineTo(this.player.x, this.player.y);
+      g.stroke({ width: 2, color: 0xf59e0b, alpha: 1 });
 
-      g.lineStyle(0);
-      g.beginFill(0xffcc66, 1);
-      for (const pt of STATE.path) g.drawRect(pt.x-2, pt.y-2, 4, 4);
-      g.drawRect(this.player.x-2, this.player.y-2, 4, 4);
-      g.endFill();
+      g.beginPath();
+      for (const pt of STATE.path) g.rect(pt.x - 2, pt.y - 2, 4, 4);
+      g.rect(this.player.x - 2, this.player.y - 2, 4, 4);
+      g.fill({ color: 0xffcc66, alpha: 1 });
     }
   }
 }
