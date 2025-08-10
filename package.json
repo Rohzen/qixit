@@ -1,25 +1,23 @@
 {
-  "name": "quixit",
-  "version": "0.2.0",
-  "private": true,
-  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "cap:init": "cap init quixit com.example.quixit --web-dir=. || true",
-    "cap:add:android": "cap add android || true",
-    "cap:open:android": "cap open android",
-    "cap:sync": "cap sync",
-    "cap:copy": "cap copy"
+
+    "android:use:devconfig": "powershell -Command Copy-Item -Force capacitor.config.dev.json capacitor.config.json",
+    "android:use:prodconfig": "powershell -Command Copy-Item -Force capacitor.config.prod.json capacitor.config.json",
+
+    "android:dev": "vite --host",
+    "android:sync": "npx cap sync android",
+    "android:open": "npx cap open android",
+
+    "android:setup": "npm run build && npx cap sync android && npx cap open android"
   },
   "devDependencies": {
-    "vite": "^5.3.0"
+    "vite": "^5.3.0",
+    "@capacitor/cli": "^6.0.0"
   },
   "dependencies": {
     "@capacitor/core": "^6.0.0"
-  },
-  "optionalDependencies": {
-    "@capacitor/cli": "^6.0.0"
   }
 }

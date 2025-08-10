@@ -1,0 +1,10 @@
+{
+  "appId": "com.example.quixit",
+  "appName": "quixit",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  }
+}
