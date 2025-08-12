@@ -105,11 +105,19 @@
     player.vx = (keys.has('ArrowRight')? speed:0) + (keys.has('ArrowLeft')? -speed:0);
     player.vy = (keys.has('ArrowDown') ? speed:0) + (keys.has('ArrowUp')   ? -speed:0);
 
-	const pxNext = player.x + player.vx;
-	const pyNext = player.y + player.vy;
-	// Avoid to enter area without pressing space ?
-    // if (player.y > 4 && player.y < W - 4) {pxNext = player.x + player.vx;}
-	// if (player.x > 4 && player.x < H - 4) {pyNext = player.y + player.vy;}
+    let pxNext = player.x + player.vx;
+    let pyNext = player.y + player.vy;
+
+    // Prevent entering the playfield unless drawing
+    if (!drawing && !keys.has(' ')) {
+      const cCurr = Math.round(player.x / CELL - 0.5);
+      const rCurr = Math.round(player.y / CELL - 0.5);
+      const cNext = Math.round(pxNext / CELL - 0.5);
+      const rNext = Math.round(pyNext / CELL - 0.5);
+      if (grid[rCurr][cNext] !== WALL) pxNext = player.x;
+      if (grid[rNext][cCurr] !== WALL) pyNext = player.y;
+    }
+
     const c = Math.round(pxNext / CELL - 0.5);
     const r = Math.round(pyNext / CELL - 0.5);
 
