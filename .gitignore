@@ -1,9 +1,0 @@
-
-node_modules/
-dist/
-*.log
-android/
-ios/
-.vscode/
-.idea/
-.DS_Store

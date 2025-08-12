@@ -1,0 +1,329 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QIX-like — Canvas Prototype</title>
+  <style>
+    html, body { height: 100%; margin: 0; background:#0b0f12; color:#e7e7e7; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; }
+    .wrap { display: grid; place-items: center; height: 100%; gap: 16px; }
+    canvas { background: #10161b; image-rendering: pixelated; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.35), inset 0 0 0 2px #182028; }
+    .hud { display:flex; gap:24px; align-items:center; flex-wrap: wrap; justify-content:center; }
+    .btn { background:#1f2a33; border:1px solid #2b3945; color:#e7e7e7; padding:8px 12px; border-radius:10px; cursor:pointer; }
+    .btn:hover { background:#263543; }
+    kbd { background:#222; border-radius:6px; padding:2px 6px; border:1px solid #333; }
+	.debug {
+		  position: fixed;
+		  top: 12px;
+		  left: 12px;
+		  background: rgba(20, 26, 32, 0.9);
+		  border: 1px solid #2b3945;
+		  padding: 8px 10px;
+		  border-radius: 10px;
+		  font: 12px/1.3 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif;
+		  color: #bfe3ff;
+		  box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+		  pointer-events: none;
+		  white-space: pre;
+	}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <canvas id="game" width="800" height="600"></canvas>
+	<div class="debug" id="debug"></div>
+    <div class="hud">
+      <div>Score: <span id="score">0</span></div>
+      <div>Filled: <span id="filled">0</span>%</div>
+      <div>Lives: <span id="lives">3</span></div>
+      <button class="btn" id="restart">Restart</button>
+      <div>Arrows to move. Hold <kbd>Space</kbd> to draw.</div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // --- Config ---
+  const W = 800, H = 600;
+  const CELL = 8;                    // grid cell size (pixels)
+  const COLS = Math.floor(W / CELL);
+  const ROWS = Math.floor(H / CELL);
+  const SPEED = 3;                   // player speed in px/frame
+  const DRAW_SPEED = 3;              // speed while drawing
+  const ENEMY_SPEED = 2.2;
+  const TARGET_FILL = 75;            // win when >= %
+
+  // Cell types
+  const EMPTY = 0;   // unclaimed
+  const WALL  = 1;   // border / claimed
+  const TRAIL = 2;   // current drawing path
+
+  /** Grid helpers */
+  const makeGrid = (cols, rows, fill=EMPTY) => Array.from({length: rows}, () => new Uint8Array(cols).fill(fill));
+  const inside = (c, r) => c>=0 && r>=0 && c<COLS && r<ROWS;
+
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const $score = document.getElementById('score');
+  const $filled = document.getElementById('filled');
+  const $lives = document.getElementById('lives');
+  const $restart = document.getElementById('restart');
+  const $debug = document.getElementById('debug');
+
+  let grid, player, enemies, score, lives, drawing, keys, gameOver, tLast;
+
+  function init() {
+    grid = makeGrid(COLS, ROWS, EMPTY);
+    // Build border walls
+    for (let c=0;c<COLS;c++){ grid[0][c]=WALL; grid[ROWS-1][c]=WALL; }
+    for (let r=0;r<ROWS;r++){ grid[r][0]=WALL; grid[r][COLS-1]=WALL; }
+
+    player = { x: (COLS/2|0)*CELL+CELL/2, y: (ROWS-2)*CELL+CELL/2, vx:0, vy:0, onWall:true };
+    enemies = [];
+    for (let i=0;i<2;i++) enemies.push(spawnEnemy());
+
+    drawing = false;
+    score = 0; lives = 3; gameOver = false; tLast = 0;
+    updateHUD();
+  }
+
+  function spawnEnemy(){
+    const angle = Math.random()*Math.PI*2;
+    let x = (COLS/2|0)*CELL + CELL/2;
+    let y = (ROWS/2|0)*CELL + CELL/2;
+    return { x, y, vx: Math.cos(angle)*ENEMY_SPEED, vy: Math.sin(angle)*ENEMY_SPEED };
+  }
+
+  // Input
+  keys = new Set();
+  addEventListener('keydown', e => { if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key)) e.preventDefault(); keys.add(e.key); });
+  addEventListener('keyup',   e => { keys.delete(e.key); });
+  $restart.onclick = () => init();
+
+  function updatePlayer(){
+    const speed = drawing ? DRAW_SPEED : SPEED;
+    player.vx = (keys.has('ArrowRight')? speed:0) + (keys.has('ArrowLeft')? -speed:0);
+    player.vy = (keys.has('ArrowDown') ? speed:0) + (keys.has('ArrowUp')   ? -speed:0);
+
+	const pxNext = player.x + player.vx;
+	const pyNext = player.y + player.vy;
+	// Avoid to enter area without pressing space ?
+    // if (player.y > 4 && player.y < W - 4) {pxNext = player.x + player.vx;}
+	// if (player.x > 4 && player.x < H - 4) {pyNext = player.y + player.vy;}
+    const c = Math.round(pxNext / CELL - 0.5);
+    const r = Math.round(pyNext / CELL - 0.5);
+
+    // Start/stop drawing with Space (only start when on wall)
+    if (keys.has(' ') && player.onWall && !drawing) { drawing = true; player.onWall=false; }
+    if (!keys.has(' ') && drawing) { /* ignore release; we auto-complete once we rejoin a wall */ }
+
+    // Move; constrain to grid bounds
+    player.x = Math.max(CELL/2, Math.min(W-CELL/2, pxNext));
+    player.y = Math.max(CELL/2, Math.min(H-CELL/2, pyNext));
+
+    // Cell interactions
+    const cc = Math.round(player.x / CELL - 0.5);
+    const rr = Math.round(player.y / CELL - 0.5);
+
+    if (drawing) {
+      if (grid[rr][cc] === WALL) {
+        // Closed the path – carve area
+        drawing = false; player.onWall = true;
+        carveArea();
+        // Clear trail
+        for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) if (grid[y][x]===TRAIL) grid[y][x]=WALL;
+      } else {
+        // Lay trail
+        grid[rr][cc] = TRAIL;
+      }
+    } else {
+      player.onWall = (grid[rr][cc] === WALL);
+    }
+  }
+
+  function updateEnemies(){
+    for (const e of enemies){
+      e.x += e.vx; e.y += e.vy;
+      // bounce on walls and claimed area
+      const cc = Math.round(e.x / CELL - 0.5);
+      const rr = Math.round(e.y / CELL - 0.5);
+      // Collide with walls
+      if (grid[rr][cc] === WALL){
+        // reflect – sample previous cell to decide axis
+        // backtrack
+        e.x -= e.vx; e.y -= e.vy;
+        // try reflect on x
+        e.vx = -e.vx; e.x += e.vx;
+        const ccX = Math.round(e.x / CELL - 0.5), rrX = Math.round(e.y / CELL - 0.5);
+        if (grid[rrX][ccX] === WALL){
+          // also blocked on X; reflect Y instead
+          e.x -= e.vx; e.vx = -e.vx; // undo x reflect
+          e.vy = -e.vy; e.y += e.vy;
+        }
+      }
+      // Trail collision -> lose life
+      const c2 = Math.round(e.x / CELL - 0.5);
+      const r2 = Math.round(e.y / CELL - 0.5);
+      if (grid[r2][c2] === TRAIL){ loseLife(); return; }
+    }
+  }
+
+  function carveArea(){
+    // We just closed a loop with TRAIL cells touching WALL. Decide which side to fill.
+    // Approach: flood fill from two seed points on either side of the trail near the closure
+    // and choose the region WITHOUT an enemy.
+    const trailCells = [];
+    for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) if (grid[y][x]===TRAIL) trailCells.push([x,y]);
+    if (!trailCells.length) return;
+
+    // Get a seed near first trail cell: check 4-neighbors for EMPTY
+    const [sx, sy] = trailCells[0];
+    const neighbors = [[1,0],[-1,0],[0,1],[0,-1]];
+    const seeds = [];
+    for (const [dx,dy] of neighbors){
+      const nx = sx+dx, ny = sy+dy;
+      if (inside(nx,ny) && grid[ny][nx]===EMPTY) seeds.push([nx,ny]);
+    }
+    // ensure 2 seeds (if fewer, just skip)
+    if (seeds.length < 1) return;
+
+    // Temporarily treat TRAIL as a wall for flood fill test
+    const blocked = (x,y) => !inside(x,y) || grid[y][x]===WALL || grid[y][x]===TRAIL;
+
+    function fillFrom(seed){
+      const stack=[seed];
+      const visited = new Set();
+      let cells=[]; let touchesEnemy=false;
+      const key=(x,y)=>x+","+y;
+      while(stack.length){
+        const [x,y]=stack.pop();
+        const k=key(x,y); if(visited.has(k)) continue; visited.add(k);
+        if (blocked(x,y)) continue;
+        cells.push([x,y]);
+        // enemy check
+        for (const e of enemies){
+          const ce = Math.round(e.x / CELL - 0.5);
+          const re = Math.round(e.y / CELL - 0.5);
+          if (ce===x && re===y){ touchesEnemy=true; break; }
+        }
+        for (const [dx,dy] of neighbors) stack.push([x+dx,y+dy]);
+      }
+      return {cells, touchesEnemy};
+    }
+
+    const regions = seeds.map(fillFrom);
+    // choose the region without enemy; if both/none, choose the smaller one
+    let choice = regions.find(r=>!r.touchesEnemy) || regions.sort((a,b)=>a.cells.length-b.cells.length)[0];
+    if (!choice) return;
+
+    for (const [x,y] of choice.cells){ grid[y][x]=WALL; score += 10; }
+
+    // Convert remaining trail to wall
+    for (const [x,y] of trailCells) grid[y][x]=WALL;
+
+    // Score and filled percent
+    updateHUD();
+
+    // Win check
+    if (percentFilled() >= TARGET_FILL){ gameOver = true; }
+  }
+
+  function percentFilled(){
+    let filled=0;
+    for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) if (grid[y][x]===WALL) filled++;
+    const total = COLS*ROWS;
+    // subtract the border-only baseline
+    const border = COLS*2 + (ROWS-2)*2;
+    return Math.floor(((filled - border) / (total - border)) * 100);
+  }
+
+  function loseLife(){
+    lives--; updateHUD();
+    if (lives<=0){ gameOver = true; return; }
+    // Reset trail cells
+    for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) if (grid[y][x]===TRAIL) grid[y][x]=EMPTY;
+    // Put player back on nearest wall
+    player.x = (COLS/2|0)*CELL+CELL/2; player.y=(ROWS-2)*CELL+CELL/2; player.onWall=true; drawing=false;
+  }
+
+  function updateHUD(){
+    $score.textContent = score;
+    $filled.textContent = percentFilled();
+    $lives.textContent = lives;
+  }
+
+function updateDebug(){
+  if (!$debug) return;
+  const cc = Math.round(player.x / CELL - 0.5);
+  const rr = Math.round(player.y / CELL - 0.5);
+  $debug.textContent =
+    'Player' +
+    '\n x: ' + player.x.toFixed(1) +
+    '  y: ' + player.y.toFixed(1) +
+    '\n col: ' + cc + '  row: ' + rr +
+    '\n vx: ' + player.vx.toFixed(2) + '  vy: ' + player.vy.toFixed(2) +
+    '\n onWall: ' + (player.onWall ? 'yes' : 'no') +
+    '\n drawing: ' + (drawing ? 'yes' : 'no');
+}
+
+  // --- Render ---
+  function render(){
+    ctx.clearRect(0,0,W,H);
+
+    // Grid background
+    for (let y=0;y<ROWS;y++){
+      for (let x=0;x<COLS;x++){
+        const v = grid[y][x];
+        if (v===EMPTY) continue;
+        if (v===WALL){ ctx.fillStyle = '#1d6c74'; }
+        else if (v===TRAIL){ ctx.fillStyle = '#e9c46a'; }
+        ctx.fillRect(x*CELL, y*CELL, CELL, CELL);
+      }
+    }
+
+    // Player
+    ctx.fillStyle = '#e76f51';
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, CELL*0.35, 0, Math.PI*2);
+    ctx.fill();
+
+    // Enemies (Qix-like sparks)
+    ctx.fillStyle = '#90caf9';
+    for (const e of enemies){
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, CELL*0.4, 0, Math.PI*2); ctx.fill();
+    }
+
+    // HUD overlays
+    if (gameOver){
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(0,0,W,H);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 36px system-ui';
+      ctx.textAlign='center';
+      ctx.fillText(percentFilled()>=TARGET_FILL? 'YOU WIN!' : 'GAME OVER', W/2, H/2);
+      ctx.font = '16px system-ui';
+      ctx.fillText('Press Restart', W/2, H/2+28);
+    }
+  }
+
+  function tick(t){
+    if (!tLast) tLast = t;
+    const dt = Math.min(32, t - tLast); // not used yet but handy
+    tLast = t;
+
+    if (!gameOver){
+      updatePlayer();
+      updateEnemies();
+    }
+    render();
+	updateDebug();
+    requestAnimationFrame(tick);
+  }
+
+  init();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
