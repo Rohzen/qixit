@@ -1,0 +1,30 @@
+{
+  "name": "qixit",
+  "version": "1.0.0",
+  "description": "A QIX-inspired arcade game built with HTML5 Canvas.",
+  "main": "generate-manifest.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js",
+    "build": "node build.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rohzen/qixit.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Rohzen/qixit/issues"
+  },
+  "homepage": "https://github.com/Rohzen/qixit#readme",
+  "dependencies": {
+    "@capacitor/core": "^8.3.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/cli": "^8.3.0"
+  }
+}

@@ -1,0 +1,3027 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>QIX-like — Canvas Prototype</title>
+  <style>
+    html, body { height: 100%; margin: 0; overflow: hidden; background: #0b0f12; color: #e7e7e7; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; }
+
+    /* Outer wrapper: stacks canvas + HUD bar vertically, centered */
+    #outer-wrap {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      width: min(100vw, calc((100vh - 74px) * 800 / 600));
+      max-width: 100vw;
+      padding: 0 env(safe-area-inset-right, 0) 0 env(safe-area-inset-left, 0);
+      box-sizing: border-box;
+    }
+
+    /* Game canvas area */
+    #game-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 800 / 600;
+    }
+
+    canvas { display: block; width: 100%; height: 100%; background: #10161b; image-rendering: pixelated; }
+
+    /* HUD sits below the canvas */
+    .hud {
+      width: 100%;
+      display: flex; gap: 4px; align-items: center; flex-wrap: wrap; justify-content: center;
+      background: rgba(8,12,16,0.92); backdrop-filter: blur(6px);
+      padding: 4px 8px; border-radius: 10px; border: 1px solid #1e2c38;
+      white-space: nowrap; pointer-events: none;
+      box-sizing: border-box;
+    }
+    .hud button { pointer-events: auto; }
+    /* HUD stat cards */
+    .hud-card {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: linear-gradient(160deg, rgba(22,34,48,0.97), rgba(9,15,22,0.99));
+      border: 1px solid rgba(29,154,176,0.22); border-radius: 7px;
+      padding: 5px 14px; min-width: 60px;
+    }
+    .hud-label { font-size: 9px; font-weight: 700; letter-spacing: 1.6px; color: #3d5e70; text-transform: uppercase; line-height: 1; margin-bottom: 3px; }
+    .hud-val   { font-size: 17px; font-weight: 700; line-height: 1.1; color: #c8e0f0; }
+    .hud-level  { border-color: rgba(126,200,227,0.3); }
+    .hud-level  .hud-val { color: #7ec8e3; }
+    .hud-score  { border-color: rgba(244,211,94,0.3); }
+    .hud-score  .hud-val { color: #f4d35e; }
+    .hud-filled { border-color: rgba(110,231,183,0.3); }
+    .hud-filled .hud-val { color: #6ee7b7; }
+    .hud-lives  { border-color: rgba(231,111,81,0.3); }
+    .hud-lives  .hud-val { font-size: 14px; letter-spacing: 2px; }
+    .vol-ctrl { display:flex; align-items:center; gap:5px; font-size:12px; color:#8ab; }
+    .vol-ctrl input[type=range] { width:80px; cursor:pointer; accent-color:#1d9ab0; vertical-align:middle; }
+
+    /* Main-menu options overlay */
+    #menu-opts {
+      position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      background: rgba(5,10,20,0.82); border: 1px solid rgba(29,154,176,0.32);
+      border-radius: 14px; padding: 10px 16px; backdrop-filter: blur(10px);
+      pointer-events: auto; white-space: nowrap; font-size: 12px; color: #7aabb8;
+      max-width: 95vw; max-height: 55vh; overflow-y: auto;
+      box-sizing: border-box;
+    }
+    #menu-opts.hidden { display: none; }
+    .opt-row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:center; }
+    #menu-opts select { background:#1f2a33; border:1px solid #2b3945; color:#e7e7e7; padding:3px 6px; border-radius:6px; cursor:pointer; font-size:12px; }
+    #bg-status { font-size:11px; color:#5a8fa0; transition:color .3s; }
+    #bg-status.error { color:#e76f51; }
+    .btn { background:#1f2a33; border:1px solid #2b3945; color:#e7e7e7; padding:6px 10px; border-radius:8px; cursor:pointer; }
+    .btn:hover { background:#263543; }
+    kbd { background:#222; border-radius:6px; padding:2px 6px; border:1px solid #333; }
+    .life { font-size:15px; transition: color .2s; }
+    .life.alive  { color:#e76f51; }
+    .life.lost   { color:#2b3945; }
+    .hud.hidden  { opacity:0; pointer-events:none; }
+
+    .debug {
+      position: absolute; top: 10px; left: 10px;
+      background: rgba(20,26,32,0.9); border: 1px solid #2b3945;
+      padding: 8px 10px; border-radius: 10px;
+      font: 12px/1.3 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif;
+      color: #bfe3ff; box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+      pointer-events: none; white-space: pre;
+      display: none;
+    }
+    .debug.visible { display: block; }
+
+    #adv-panel {
+      position: absolute; inset: 0; z-index: 30;
+      background: rgba(4,8,15,0.97); backdrop-filter: blur(8px);
+      display: flex; align-items: flex-start; justify-content: center;
+      overflow-y: auto; padding: 16px 8px;
+    }
+    #adv-panel.hidden { display: none; }
+    #adv-inner {
+      width: 100%; max-width: 720px;
+      background: rgba(10,18,28,0.99); border: 1px solid rgba(29,154,176,0.28);
+      border-radius: 14px; padding: 18px 22px;
+      display: flex; flex-direction: column; gap: 14px;
+      font-size: 12px; color: #7aabb8;
+    }
+    .adv-header { display:flex; justify-content:space-between; align-items:center; }
+    .adv-header h3 { font-size:13px; letter-spacing:2px; color:#3e9ab8; text-transform:uppercase; margin:0; }
+    .adv-section { border-top:1px solid rgba(29,154,176,0.12); padding-top:12px; display:flex; flex-direction:column; gap:8px; }
+    .adv-title { font-size:10px; font-weight:700; letter-spacing:2px; color:#3d6878; text-transform:uppercase; }
+    .adv-grid { display:flex; flex-wrap:wrap; gap:5px; }
+    .adv-check { display:flex; align-items:center; gap:4px; font-size:11px; color:#7aabb8; cursor:pointer; padding:3px 8px; border-radius:6px; border:1px solid rgba(29,154,176,0.15); background:rgba(12,22,32,0.9); white-space:nowrap; user-select:none; }
+    .adv-check input[type=checkbox] { accent-color:#1d9ab0; cursor:pointer; margin:0; }
+    .adv-check.active { border-color:rgba(29,154,176,0.45); color:#aee; background:rgba(20,40,55,0.9); }
+    .sfx-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .sfx-label { font-size:11px; color:#4a7888; min-width:120px; }
+    .sfx-row select { flex:1; min-width:140px; background:#0e1922; border:1px solid #1e2e3a; color:#c8e0f0; padding:3px 6px; border-radius:6px; font-size:11px; cursor:pointer; }
+    .adv-row-btns { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    #cache-adv-status { font-size:10px; color:#5a8890; }
+    .adv-bgm-item { display:flex; align-items:center; gap:2px; }
+    .adv-preview-btn { padding:1px 6px; font-size:10px; min-width:24px; line-height:1.5; border-color:rgba(29,154,176,0.25); color:#4a8a9a; background:rgba(8,16,24,0.9); }
+    .adv-preview-btn:hover { background:rgba(18,32,44,0.95); color:#6ab8cc; }
+    .adv-preview-btn.playing { border-color:rgba(110,231,183,0.5); color:#6ee7b7; background:rgba(15,40,32,0.9); }
+    .credits-row { border-top:1px solid rgba(29,154,176,0.1); padding-top:8px !important; }
+    .credits-text { font-size:10px; color:#2e4a58; text-align:center; line-height:1.8; }
+    .credits-text strong { color:#3e6878; }
+    .credits-text a { color:#2e6a82; text-decoration:none; }
+    .credits-text a:hover { text-decoration:underline; }
+
+    /* ── Touch Controls ─────────────────────────────────────────────────── */
+    #touch-controls {
+      display: none; /* shown via JS on touch devices */
+      width: 100%;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 12px;
+      box-sizing: border-box;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    #touch-controls.visible { display: flex; }
+
+    /* D-pad container */
+    .dpad {
+      display: grid;
+      grid-template-columns: 44px 44px 44px;
+      grid-template-rows: 44px 44px 44px;
+      gap: 3px;
+      pointer-events: auto;
+    }
+    .dpad-btn {
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(29,154,176,0.18);
+      border: 1.5px solid rgba(29,154,176,0.4);
+      border-radius: 10px;
+      color: #7ec8e3;
+      font-size: 20px;
+      pointer-events: auto;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.08s, border-color 0.08s;
+    }
+    .dpad-btn:active, .dpad-btn.pressed {
+      background: rgba(29,154,176,0.45);
+      border-color: rgba(126,200,227,0.7);
+      box-shadow: 0 0 14px rgba(29,154,176,0.5);
+      color: #fff;
+    }
+    .dpad-blank { visibility: hidden; }
+
+    /* Action button */
+    .action-btn {
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      background: rgba(231,111,81,0.2);
+      border: 2px solid rgba(231,111,81,0.5);
+      color: #e76f51;
+      font-size: 13px; font-weight: 700;
+      letter-spacing: 1px;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: auto;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.08s, border-color 0.08s;
+    }
+    .action-btn:active, .action-btn.pressed {
+      background: rgba(231,111,81,0.5);
+      border-color: rgba(244,211,94,0.8);
+      box-shadow: 0 0 20px rgba(231,111,81,0.5);
+      color: #fff;
+    }
+
+    /* ── Mobile-specific adjustments ────────────────────────────────────── */
+    @media (max-height: 440px) {
+      .hud { padding: 2px 6px; gap: 3px; }
+      .hud-card { padding: 2px 8px; min-width: 44px; }
+      .hud-label { font-size: 7px; letter-spacing: 1px; }
+      .hud-val { font-size: 13px; }
+      .hud-lives .hud-val { font-size: 11px; }
+      #touch-controls { padding: 2px 8px; }
+      .dpad { grid-template-columns: 38px 38px 38px; grid-template-rows: 38px 38px 38px; gap: 2px; }
+      .dpad-btn { font-size: 17px; border-radius: 8px; }
+      .action-btn { width: 60px; height: 60px; font-size: 11px; }
+      .btn { padding: 4px 8px; font-size: 11px; }
+      #menu-opts { padding: 8px 12px; gap: 6px; font-size: 11px; }
+      .vol-ctrl input[type=range] { width: 60px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="outer-wrap">
+    <div id="game-wrap">
+      <canvas id="game" width="800" height="600"></canvas>
+      <div class="debug" id="debug"></div>
+      <!-- Options panel — visible on main menu and when paused -->
+      <div id="menu-opts">
+        <div class="opt-row" id="resume-row" style="display:none">
+          <button class="btn" id="resume-btn" style="font-size:13px;padding:6px 18px;border-color:rgba(110,231,183,0.4);color:#6ee7b7">&#9654; Resume</button>
+        </div>
+        <div class="opt-row">
+          <button class="btn" id="qix-toggle">Qix: Classic</button>
+          <button class="btn" id="mute-btn">Music: ON</button>
+          <button class="btn" id="mute-sfx-btn">SFX: ON</button>
+        </div>
+        <div class="opt-row">
+          <label class="vol-ctrl">Music <input type="range" id="vol-music" min="0" max="100" value="22"></label>
+          <label class="vol-ctrl">SFX <input type="range" id="vol-sfx" min="0" max="100" value="100"></label>
+        </div>
+        <div class="opt-row">
+          <label class="vol-ctrl">Background
+            <select id="bg-theme">
+              <option value="local">Local</option>
+              <option value="landscape">Landscape</option>
+              <option value="space">Space</option>
+              <option value="anime">Anime</option>
+              <option value="city">City</option>
+              <option value="nature">Nature</option>
+              <option value="art">Art</option>
+              <option value="custom">Custom</option>
+            </select>
+          </label>
+          <span id="bg-status"></span>
+        </div>
+        <div class="opt-row">
+          <button class="btn" id="adv-toggle">&#9881; Advanced</button>
+        </div>
+        <div class="opt-row credits-row">
+          <span class="credits-text">
+            Made by <strong>Roberto Zanardo</strong> with <strong>Claude Code</strong> &copy; 2026
+            &nbsp;&middot;&nbsp; Assets under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>
+            &nbsp;&middot;&nbsp; Powered by free APIs
+          </span>
+        </div>
+      </div>
+      <div id="adv-panel" class="hidden">
+        <div id="adv-inner">
+          <div class="adv-header">
+            <h3>&#9881; Advanced Options</h3>
+            <button class="btn" id="adv-close">&#10005; Close</button>
+          </div>
+          <div class="adv-section">
+            <div class="adv-title">&#127925; Music Pool &mdash; levels cycle through checked tracks</div>
+            <div class="adv-grid" id="bgm-pool-list"></div>
+          </div>
+          <div class="adv-section">
+            <div class="adv-title">&#127925; Menu Music</div>
+            <div id="menu-music-row" class="sfx-row"></div>
+          </div>
+          <div class="adv-section">
+            <div class="adv-title">&#128266; Sound Effects</div>
+            <div id="sfx-assign-list" style="display:flex;flex-direction:column;gap:8px"></div>
+          </div>
+          <div class="adv-section">
+            <div class="adv-title">&#128100; Player Sprite</div>
+            <div id="player-skin-list"></div>
+          </div>
+          <div class="adv-section">
+            <div class="adv-title">&#127776; Background Images</div>
+            <div id="bg-search-section" style="display:flex;flex-direction:column;gap:12px;font-size:11px;color:#7aabb8"></div>
+          </div>
+          <div class="adv-section">
+            <div class="adv-title">&#9881; Qix Appearance</div>
+            <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+              <canvas id="qix-preview" width="130" height="130"
+                style="width:130px;height:130px;border-radius:10px;border:1px solid rgba(29,154,176,0.22);background:#060e16;flex-shrink:0"></canvas>
+              <div id="qix-gen-controls" style="display:flex;flex-direction:column;gap:7px;flex:1;min-width:190px;font-size:11px;color:#7aabb8"></div>
+            </div>
+          </div>
+          <div class="adv-section">
+            <div class="adv-title">&#127758; Bonus Objects</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <label class="adv-check" id="bonus-enable-label">
+                <input type="checkbox" id="bonus-enable-cb"> Enable bonus objects (capture for points)
+              </label>
+              <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:#7aabb8">
+                <span>Count per level:</span>
+                <input type="number" id="bonus-count-input" min="1" max="8" value="2"
+                  style="width:48px;background:#0e1922;border:1px solid #1e2e3a;color:#c8e0f0;padding:2px 4px;border-radius:4px;font-size:11px">
+              </div>
+              <div style="font-size:10px;color:#4a7a8a;letter-spacing:1px;text-transform:uppercase;margin-top:4px;">Sprite</div>
+              <div id="bonus-sprite-list"></div>
+            </div>
+          </div>
+          <div class="adv-section">
+            <div class="adv-title">&#127912; Theme</div>
+            <div class="adv-row-btns">
+              <button class="btn" id="theme-export-btn">&#11015; Export Theme</button>
+              <button class="btn" id="theme-import-btn">&#11014; Import Theme</button>
+              <input type="file" id="theme-import-file" accept=".json" style="display:none">
+              <span id="theme-status" style="font-size:10px;color:#5a8890"></span>
+            </div>
+          </div>
+          <div class="adv-section">
+            <div class="adv-title">&#128260; Assets (requires <code style="font-size:10px;background:#0a1420;padding:1px 4px;border-radius:3px">node server.js</code>)</div>
+            <div class="adv-row-btns">
+              <button class="btn" id="refresh-assets-btn">&#128260; Refresh Assets</button>
+              <span id="refresh-assets-status" style="font-size:10px;color:#5a8890"></span>
+            </div>
+            <div style="font-size:10px;color:#2e4a58;margin-top:4px;line-height:1.7">
+              Drop sprites into <code style="background:#0a1420;padding:1px 3px;border-radius:3px">assets/sprites/enemies|sparx|player|bonus/</code>
+              then click Refresh to pick them up live.
+            </div>
+          </div>
+          <div class="adv-section">
+            <div class="adv-title">&#128190; Image Cache (1h TTL)</div>
+            <div class="adv-row-btns">
+              <button class="btn" id="cache-clear-btn">&#128465; Clear Cache</button>
+              <button class="btn" id="cache-prefetch-btn">&#11015; Prefetch All Themes</button>
+              <span id="cache-adv-status"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="hud">
+      <div class="hud-card hud-level">
+        <span class="hud-label">LVL</span>
+        <span class="hud-val" id="level">1</span>
+      </div>
+      <div class="hud-card hud-score">
+        <span class="hud-label">SCORE</span>
+        <span class="hud-val" id="score">0</span>
+      </div>
+      <div class="hud-card hud-filled">
+        <span class="hud-label">FILLED</span>
+        <span class="hud-val"><span id="filled">0</span>%</span>
+      </div>
+      <div class="hud-card hud-lives">
+        <span class="hud-label">LIVES</span>
+        <div id="lives-wrap" class="hud-val"></div>
+      </div>
+      <button class="btn" id="restart" style="font-size:12px;padding:5px 10px">&#9776; Menu</button>
+    </div>
+    <!-- Touch controls: D-pad + action button (hidden on desktop) -->
+    <div id="touch-controls">
+      <div class="dpad">
+        <div class="dpad-blank"></div>
+        <button class="dpad-btn" data-dir="ArrowUp">▲</button>
+        <div class="dpad-blank"></div>
+        <button class="dpad-btn" data-dir="ArrowLeft">◀</button>
+        <div class="dpad-blank"></div>
+        <button class="dpad-btn" data-dir="ArrowRight">▶</button>
+        <div class="dpad-blank"></div>
+        <button class="dpad-btn" data-dir="ArrowDown">▼</button>
+        <div class="dpad-blank"></div>
+      </div>
+      <button class="action-btn" id="draw-btn">DRAW</button>
+    </div>
+  </div>
+
+<!-- Asset manifest — regenerate with: node generate-manifest.js -->
+<script id="asset-manifest" type="application/json">
+{
+  "bgm": [
+    {
+      "src": "assets/music/bgm/Beach House.ogg",
+      "label": "Beach House"
+    },
+    {
+      "src": "assets/music/bgm/BEAT this Week.ogg",
+      "label": "BEAT this Week"
+    },
+    {
+      "src": "assets/music/bgm/Beats A.ogg",
+      "label": "Beats A"
+    },
+    {
+      "src": "assets/music/bgm/Beats ABCD.ogg",
+      "label": "Beats ABCD"
+    },
+    {
+      "src": "assets/music/bgm/Beats C.ogg",
+      "label": "Beats C"
+    },
+    {
+      "src": "assets/music/bgm/Beats D.ogg",
+      "label": "Beats D"
+    },
+    {
+      "src": "assets/music/bgm/Catwalk.ogg",
+      "label": "Catwalk"
+    },
+    {
+      "src": "assets/music/bgm/Creepy Forest.ogg",
+      "label": "Creepy Forest"
+    },
+    {
+      "src": "assets/music/bgm/Dangerous Path.ogg",
+      "label": "Dangerous Path"
+    },
+    {
+      "src": "assets/music/bgm/Dead Planet.ogg",
+      "label": "Dead Planet"
+    },
+    {
+      "src": "assets/music/bgm/Electric.ogg",
+      "label": "Electric"
+    },
+    {
+      "src": "assets/music/bgm/Forever Lost.ogg",
+      "label": "Forever Lost"
+    },
+    {
+      "src": "assets/music/bgm/Groovy booty.ogg",
+      "label": "Groovy booty"
+    },
+    {
+      "src": "assets/music/bgm/Groovy Saturday.ogg",
+      "label": "Groovy Saturday"
+    },
+    {
+      "src": "assets/music/bgm/High End Party.ogg",
+      "label": "High End Party"
+    },
+    {
+      "src": "assets/music/bgm/It_s a Fashion Week!.ogg",
+      "label": "It's a Fashion Week!"
+    },
+    {
+      "src": "assets/music/bgm/Light Music.ogg",
+      "label": "Light Music"
+    },
+    {
+      "src": "assets/music/bgm/Lost in the Dessert.ogg",
+      "label": "Lost in the Dessert"
+    },
+    {
+      "src": "assets/music/bgm/Lullaby.ogg",
+      "label": "Lullaby"
+    },
+    {
+      "src": "assets/music/bgm/Magical Forest.ogg",
+      "label": "Magical Forest"
+    },
+    {
+      "src": "assets/music/bgm/Mysteries of Magic.ogg",
+      "label": "Mysteries of Magic"
+    },
+    {
+      "src": "assets/music/bgm/Mysterious Tavern.ogg",
+      "label": "Mysterious Tavern"
+    },
+    {
+      "src": "assets/music/bgm/Nostalgic.ogg",
+      "label": "Nostalgic"
+    },
+    {
+      "src": "assets/music/bgm/Puzzles.ogg",
+      "label": "Puzzles"
+    },
+    {
+      "src": "assets/music/bgm/Radiohead.ogg",
+      "label": "Radiohead"
+    },
+    {
+      "src": "assets/music/bgm/Spaceship.ogg",
+      "label": "Spaceship"
+    },
+    {
+      "src": "assets/music/bgm/Spinning out.ogg",
+      "label": "Spinning out"
+    },
+    {
+      "src": "assets/music/bgm/Sweet Treats.ogg",
+      "label": "Sweet Treats"
+    },
+    {
+      "src": "assets/music/bgm/Temple Miniclips.ogg",
+      "label": "Temple Miniclips"
+    },
+    {
+      "src": "assets/music/bgm/Temple.ogg",
+      "label": "Temple"
+    },
+    {
+      "src": "assets/music/bgm/Warmth.ogg",
+      "label": "Warmth"
+    },
+    {
+      "src": "assets/music/bgm/Whisperer.ogg",
+      "label": "Whisperer"
+    },
+    {
+      "src": "assets/music/bgm/You_re in the Future.ogg",
+      "label": "You're in the Future"
+    }
+  ],
+  "sfx": [
+    {
+      "src": "assets/music/sfx/Balloon Pop 1.wav",
+      "label": "Balloon Pop 1"
+    },
+    {
+      "src": "assets/music/sfx/Big Egg collect 1.wav",
+      "label": "Big Egg collect 1"
+    },
+    {
+      "src": "assets/music/sfx/Block Break 1.wav",
+      "label": "Block Break 1"
+    },
+    {
+      "src": "assets/music/sfx/Block Break 2.wav",
+      "label": "Block Break 2"
+    },
+    {
+      "src": "assets/music/sfx/Blow 1V2.wav",
+      "label": "Blow 1V2"
+    },
+    {
+      "src": "assets/music/sfx/Boss hit 1.wav",
+      "label": "Boss hit 1"
+    },
+    {
+      "src": "assets/music/sfx/Bubble heavy 1.wav",
+      "label": "Bubble heavy 1"
+    },
+    {
+      "src": "assets/music/sfx/Bubble heavy 2.wav",
+      "label": "Bubble heavy 2"
+    },
+    {
+      "src": "assets/music/sfx/Effects A.ogg",
+      "label": "Effects A"
+    },
+    {
+      "src": "assets/music/sfx/Effects B.ogg",
+      "label": "Effects B"
+    },
+    {
+      "src": "assets/music/sfx/Effects C.ogg",
+      "label": "Effects C"
+    },
+    {
+      "src": "assets/music/sfx/Effects D.ogg",
+      "label": "Effects D"
+    },
+    {
+      "src": "assets/music/sfx/Fruit collect 1.wav",
+      "label": "Fruit collect 1"
+    },
+    {
+      "src": "assets/music/sfx/GameOver.ogg",
+      "label": "GameOver"
+    },
+    {
+      "src": "assets/music/sfx/Hit damage 1.wav",
+      "label": "Hit damage 1"
+    },
+    {
+      "src": "assets/music/sfx/Jump 1.wav",
+      "label": "Jump 1"
+    },
+    {
+      "src": "assets/music/sfx/Level Up (miniclip).ogg",
+      "label": "Level Up"
+    },
+    {
+      "src": "assets/music/sfx/Level Up 2 (miniclip).ogg",
+      "label": "Level Up 2"
+    },
+    {
+      "src": "assets/music/sfx/Suck 1.wav",
+      "label": "Suck 1"
+    },
+    {
+      "src": "assets/music/sfx/Suck 1V2.wav",
+      "label": "Suck 1V2"
+    },
+    {
+      "src": "assets/music/sfx/Suck 2.wav",
+      "label": "Suck 2"
+    },
+    {
+      "src": "assets/music/sfx/Victory.ogg",
+      "label": "Victory"
+    }
+  ],
+  "sprites": [
+    {
+      "src": "assets/sprites/enemies/Free Smoke Fx  Pixel 04.png",
+      "label": "Smoke 04",
+      "frameSize": 128
+    },
+    {
+      "src": "assets/sprites/enemies/Free Smoke Fx  Pixel 05.png",
+      "label": "Smoke 05",
+      "frameSize": 64
+    },
+    {
+      "src": "assets/sprites/enemies/Free Smoke Fx  Pixel 06.png",
+      "label": "Smoke 06",
+      "frameSize": 64
+    },
+    {
+      "src": "assets/sprites/enemies/Free Smoke Fx  Pixel 07.png",
+      "label": "Smoke 07",
+      "frameSize": 256
+    }
+  ],
+  "player": [],
+  "sparx": [],
+  "bonus": []
+}
+</script>
+
+<script>
+(() => {
+  // --- Asset manifest: fetch live from server, fall back to embedded JSON ---
+  let _manifest = (() => {
+    try { return JSON.parse(document.getElementById('asset-manifest').textContent); }
+    catch(_) { return { bgm: [], sfx: [], sprites: [] }; }
+  })();
+  // Try to get a live manifest from the dev server (only works when served via node server.js)
+  fetch('/api/manifest').then(r => r.ok ? r.json() : null).then(live => {
+    if (!live) return;
+    _manifest = live;
+    // Rebuild ALL_* arrays from fresh manifest
+    ALL_BGM.length = 0; live.bgm.forEach(e => ALL_BGM.push(e));
+    ALL_SFX_FILES.length = 0; live.sfx.forEach(e => ALL_SFX_FILES.push(e.src));
+    ALL_SPRITE_DEFS.length = 0; live.sprites.forEach(e => ALL_SPRITE_DEFS.push(e));
+    ALL_PLAYER_DEFS.length = 0; (live.player || []).forEach(e => ALL_PLAYER_DEFS.push(e));
+    ALL_SPARX_DEFS.length  = 0; (live.sparx  || []).forEach(e => ALL_SPARX_DEFS.push(e));
+    ALL_BONUS_DEFS.length  = 0; (live.bonus  || []).forEach(e => ALL_BONUS_DEFS.push(e));
+    // Reload images for any new entries
+    live.sprites.forEach((def, idx) => {
+      if (!spriteImgs[idx]) { spriteImgs[idx] = loadSpriteImg(def); }
+    });
+    (live.player || []).forEach((def, idx) => {
+      if (!playerImgs[idx]) { playerImgs[idx] = loadSpriteImg(def); }
+    });
+    (live.sparx || []).forEach((def, idx) => {
+      if (!sparxImgs[idx]) { sparxImgs[idx] = loadSpriteImg(def); }
+    });
+    (live.bonus || []).forEach((def, idx) => {
+      if (!bonusImgs[idx]) { bonusImgs[idx] = loadSpriteImg(def); }
+    });
+    // Rebuild the advanced panel with the fresh data
+    if (typeof buildAdvPanel === 'function') buildAdvPanel();
+  }).catch(() => { /* running on file://, silently use embedded manifest */ });
+
+  // --- Config ---
+  const W = 800, H = 600;
+  const CELL = 8;                    // grid cell size (pixels)
+  const COLS = Math.floor(W / CELL);
+  const ROWS = Math.floor(H / CELL);
+  const SPEED = 3;                   // player speed in px/frame
+  const DRAW_SPEED = 3;              // speed while drawing
+  const ENEMY_SPEED = 2.2;
+  const SPARX_SPEED = 10;            // frames per step for Sparx
+  function levelTarget() { return Math.min(75 + Math.floor((level - 1) * 1.5), 90); }
+
+  const IMAGES = [
+    'assets/backgrounds/landscape1.jpg',
+    'assets/backgrounds/landscape2.jpg',
+    'assets/backgrounds/landscape3.jpg',
+    'assets/backgrounds/landscape4.jpg',
+    'assets/backgrounds/landscape5.jpg',
+  ];
+
+  // Cell types
+  const EMPTY  = 0;   // unclaimed interior
+  const WALL   = 1;   // border / trail-boundary (walkable)
+  const TRAIL  = 2;   // current drawing path
+  const FILLED = 3;   // cleared interior (not walkable)
+
+  /** Grid helpers */
+  const makeGrid = (cols, rows, fill=EMPTY) => Array.from({length: rows}, () => new Uint8Array(cols).fill(fill));
+  const inside = (c, r) => c>=0 && r>=0 && c<COLS && r<ROWS;
+
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  // HiDPI: render at device pixel ratio so images stay crisp on all screens
+  (function() {
+    const dpr = window.devicePixelRatio || 1;
+    if (dpr !== 1) { canvas.width = W * dpr; canvas.height = H * dpr; ctx.scale(dpr, dpr); }
+  })();
+  const $score = document.getElementById('score');
+  const $filled = document.getElementById('filled');
+  const $livesWrap = document.getElementById('lives-wrap');
+  const $level = document.getElementById('level');
+  const $hud   = document.querySelector('.hud');
+  const $restart = document.getElementById('restart');
+  const $debug = document.getElementById('debug');
+  const $muteBtn   = document.getElementById('mute-btn');
+  const $volMusic  = document.getElementById('vol-music');
+  const $volSfx    = document.getElementById('vol-sfx');
+  const $bgTheme   = document.getElementById('bg-theme');
+  const $bgStatus  = document.getElementById('bg-status');
+  const $menuOpts  = document.getElementById('menu-opts');
+  let customImages = null; // null = use local IMAGES array; array = fetched URLs
+
+  let qixProcedural = true;
+  let enemyExplosions = [];
+
+  // ── Audio ────────────────────────────────────────────────────────────────
+  let menuMusicSrc = 'assets/music/bgm/Mysteries of Magic.ogg';
+
+  const ALL_BGM = _manifest.bgm;   // populated from embedded manifest
+
+  // Default pool — filter to only include tracks present in the manifest
+  const _defaultPool = [
+    'assets/music/bgm/Electric.ogg',
+    'assets/music/bgm/Groovy Saturday.ogg',
+    'assets/music/bgm/Dangerous Path.ogg',
+    'assets/music/bgm/Spaceship.ogg',
+    'assets/music/bgm/Dead Planet.ogg',
+    'assets/music/bgm/You_re in the Future.ogg',
+  ].filter(s => ALL_BGM.some(e => e.src === s));
+  let bgmPool = _defaultPool.length > 0 ? _defaultPool : ALL_BGM.slice(0, 6).map(e => e.src);
+
+  let musicVol = 0.22;
+  const bgAudio = new Audio();
+  bgAudio.loop = true;
+  bgAudio.volume = musicVol;
+
+  function makeOneShot(src, vol = 0.65) {
+    const a = new Audio(src);
+    a.volume = vol;
+    a._src = src;
+    return a;
+  }
+
+  const sfxDefs = [
+    ['assets/music/sfx/Effects A.ogg', 0.65],
+    ['assets/music/sfx/Effects B.ogg', 0.80],
+    ['assets/music/sfx/Effects C.ogg', 0.80],
+    ['assets/music/sfx/Effects D.ogg', 0.55],
+    ['assets/music/sfx/Level Up (miniclip).ogg', 0.75],
+    ['assets/music/sfx/GameOver.ogg', 0.75],
+    ['assets/music/sfx/Victory.ogg', 0.75],
+  ];
+  const sfxBaseVols = sfxDefs.map(d => d[1]);
+  const sfxAll = sfxDefs.map(([src, vol]) => makeOneShot(src, vol));
+  const [sfxClaim, sfxKill, sfxDeath, sfxDrawStart, sfxLevelUp, sfxGameOver, sfxVictory] = sfxAll;
+  let sfxVol = 1.0;
+
+  let audioMuted = false;
+  let sfxMuted = false;
+  let currentBGMSrc = '';
+
+  // ── Preview audio (advanced panel BGM/SFX audition) ────────────────────────
+  const previewAudio = new Audio();
+  previewAudio.loop = false;
+  let _previewBtn = null; // currently lit ▶ button
+
+  function stopPreview() {
+    previewAudio.pause();
+    previewAudio.currentTime = 0;
+    if (_previewBtn) { _previewBtn.textContent = '▶'; _previewBtn.classList.remove('playing'); _previewBtn = null; }
+  }
+
+  function previewBGM(src, btn) {
+    // Toggle: clicking the active track stops it
+    if (_previewBtn === btn && !previewAudio.paused) { stopPreview(); return; }
+    stopPreview();
+    previewAudio.src = src;
+    previewAudio.volume = musicVol || 0.5; // preview ignores mute
+    previewAudio.play().catch(() => {});
+    btn.textContent = '■'; btn.classList.add('playing');
+    _previewBtn = btn;
+    previewAudio.onended = () => stopPreview();
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  function playBGM(src) {
+    if (currentBGMSrc === src) return;
+    currentBGMSrc = src;
+    bgAudio.src = src;
+    if (!audioMuted) bgAudio.play().catch(() => {});
+  }
+  function stopBGM() { bgAudio.pause(); bgAudio.currentTime = 0; currentBGMSrc = ''; }
+  function playSFX(sfx) {
+    if (sfxMuted) return;
+    sfx.currentTime = 0;
+    sfx.play().catch(() => {});
+  }
+
+  $muteBtn.onclick = () => {
+    audioMuted = !audioMuted;
+    $muteBtn.textContent = audioMuted ? 'Music: OFF' : 'Music: ON';
+    if (audioMuted) bgAudio.pause();
+    else { bgAudio.volume = musicVol; if (currentBGMSrc) bgAudio.play().catch(() => {}); }
+  };
+
+  const $muteSfxBtn = document.getElementById('mute-sfx-btn');
+  $muteSfxBtn.onclick = () => {
+    sfxMuted = !sfxMuted;
+    $muteSfxBtn.textContent = sfxMuted ? 'SFX: OFF' : 'SFX: ON';
+  };
+
+  $volMusic.oninput = () => {
+    musicVol = $volMusic.value / 100;
+    if (!audioMuted) bgAudio.volume = musicVol;
+  };
+
+  $volSfx.oninput = () => {
+    sfxVol = $volSfx.value / 100;
+    sfxAll.forEach((a, i) => { a.volume = sfxBaseVols[i] * sfxVol; });
+  };
+
+  // Start menu music on first user interaction (browser requires gesture)
+  const _startMenuMusic = () => { if (menuActive) playBGM(menuMusicSrc); };
+  document.addEventListener('keydown', _startMenuMusic, { once: true });
+  document.addEventListener('click',   _startMenuMusic, { once: true });
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // ── NASA APOD (bonus level 6 background) ─────────────────────────────────
+  let apodImageUrl = null;
+  let apodTitle    = '';
+  let apodDate     = '';
+  (async () => {
+    try {
+      const res  = await fetch('https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY');
+      const data = await res.json();
+      apodTitle = data.title || '';
+      apodDate  = data.date  || '';
+      if (data.media_type === 'image') {
+        apodImageUrl = data.hdurl || data.url;
+      } else if (data.thumbnail_url) {
+        apodImageUrl = data.thumbnail_url; // video: use provided thumb
+      }
+    } catch (_) { /* offline / rate-limited — level 6 will stay dark */ }
+  })();
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // ── Image cache helpers ───────────────────────────────────────────────────
+  const BG_CACHE_TTL = 3600000; // 1 hour
+  function saveBgCache(theme, urls) {
+    try { localStorage.setItem('qixit_bg_' + theme, JSON.stringify({ urls, ts: Date.now() })); } catch(_) {}
+  }
+  function loadBgCache(theme) {
+    try {
+      const d = JSON.parse(localStorage.getItem('qixit_bg_' + theme));
+      if (d && (Date.now() - d.ts) < BG_CACHE_TTL) return d.urls;
+    } catch(_) {}
+    return null;
+  }
+  function clearAllBgCache() {
+    for (const t of ['landscape','space','anime','city','nature','art','custom']) {
+      try { localStorage.removeItem('qixit_bg_' + t); } catch(_) {}
+    }
+    $bgStatus.textContent = 'Cache cleared';
+    $bgStatus.className = '';
+    customImages = null;
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // ── Online background themes ──────────────────────────────────────────────
+  async function fetchBgImages(theme) {
+    if (theme === 'local') {
+      customImages = null;
+      $bgStatus.textContent = '';
+      $bgStatus.className = '';
+      return;
+    }
+    const cached = loadBgCache(theme);
+    if (cached) {
+      customImages = cached;
+      $bgStatus.textContent = `${cached.length} images (cached)`;
+      $bgStatus.className = '';
+      if (!menuActive) loadLevelImage();
+      return;
+    }
+    $bgStatus.textContent = 'Fetching…';
+    $bgStatus.className = '';
+    try {
+      let urls = [];
+
+      if (theme === 'landscape') {
+        // Picsum Photos — curated real photography, no key needed
+        const page = Math.floor(Math.random() * 30) + 1;
+        const res  = await fetch(`https://picsum.photos/v2/list?page=${page}&limit=5`);
+        const data = await res.json();
+        urls = data.map(item => `https://picsum.photos/id/${item.id}/800/600`);
+
+      } else if (theme === 'space') {
+        // NASA Images & Video Library — no key needed
+        const queries = bgSpaceQueries.length > 0 ? bgSpaceQueries : BG_SPACE_DEFAULTS;
+        const q   = queries[Math.floor(Math.random() * queries.length)];
+        const res = await fetch(
+          `https://images-api.nasa.gov/search?q=${encodeURIComponent(q)}&media_type=image&page_size=100`
+        );
+        const data  = await res.json();
+        const items = (data.collection?.items || []).filter(i => i.links?.[0]?.href);
+        // shuffle and pick 5
+        for (let i = items.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [items[i], items[j]] = [items[j], items[i]];
+        }
+        urls = items.slice(0, 5).map(i => i.links[0].href);
+
+      } else if (theme === 'anime') {
+        // Try Safebooru with custom tags first (if any), fall back to nekos.best
+        if (bgAnimeCustomTags.length > 0) {
+          try {
+            const tags = bgAnimeCustomTags.join('+');
+            const pid  = Math.floor(Math.random() * 10);
+            const res  = await fetch(
+              `https://safebooru.org/index.php?page=dapi&s=post&q=index` +
+              `&tags=${encodeURIComponent(tags)}&limit=20&json=1&pid=${pid}`
+            );
+            const data = await res.json();
+            urls = (Array.isArray(data) ? data : [])
+              .filter(p => p.file_url && /\.(jpe?g|png|webp)$/i.test(p.file_url))
+              .map(p => p.file_url).slice(0, 5);
+          } catch(_) { /* CORS or network failure — fall through */ }
+        }
+        if (urls.length === 0) {
+          // nekos.best — SFW anime art, no key needed, reliable CORS support
+          const categories = bgAnimeCategories.length > 0 ? bgAnimeCategories : BG_ANIME_DEFAULTS;
+          const cat = categories[Math.floor(Math.random() * categories.length)];
+          const res  = await fetch(`https://nekos.best/api/v2/${cat}?amount=5`);
+          const data = await res.json();
+          urls = (data.results || []).map(r => r.url);
+        }
+
+      } else if (theme === 'city') {
+        // Picsum Photos pages 41–60 — tends toward architectural / urban shots
+        const page = Math.floor(Math.random() * 20) + 41;
+        const res  = await fetch(`https://picsum.photos/v2/list?page=${page}&limit=5`);
+        const data = await res.json();
+        urls = data.map(item => `https://picsum.photos/id/${item.id}/800/600`);
+
+      } else if (theme === 'nature') {
+        // Picsum Photos pages 11–30 — nature / outdoor photography
+        const page = Math.floor(Math.random() * 20) + 11;
+        const res  = await fetch(`https://picsum.photos/v2/list?page=${page}&limit=5`);
+        const data = await res.json();
+        urls = data.map(item => `https://picsum.photos/id/${item.id}/800/600`);
+
+      } else if (theme === 'art') {
+        // Metropolitan Museum of Art — public domain paintings, no key, CORS-open
+        const queries = bgArtQueries.length > 0 ? bgArtQueries : BG_ART_DEFAULTS;
+        const q = queries[Math.floor(Math.random() * queries.length)];
+        const sRes = await fetch(`https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&isPublicDomain=true&q=${encodeURIComponent(q)}`);
+        const sData = await sRes.json();
+        const ids = (sData.objectIDs || []).slice(0, 60);
+        for (let i = ids.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [ids[i], ids[j]] = [ids[j], ids[i]];
+        }
+        const details = await Promise.all(
+          ids.slice(0, 10).map(id =>
+            fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`)
+              .then(r => r.json()).catch(() => ({}))
+          )
+        );
+        urls = details.filter(d => d.primaryImageSmall).map(d => d.primaryImageSmall).slice(0, 5);
+
+      } else if (theme === 'custom') {
+        const sources      = bgCustomSources.length > 0 ? bgCustomSources : BG_CUSTOM_SOURCES_DEFAULTS;
+        const src          = sources[Math.floor(Math.random() * sources.length)];
+        const q            = bgCustomInclude.trim() || 'landscape nature';
+        const excludeWords = bgCustomExclude.split(',').map(w => w.trim().toLowerCase()).filter(Boolean);
+
+        if (src === 'loremflickr') {
+          // Loremflickr — high-quality CC-licensed photography, no key needed
+          const kw = encodeURIComponent(q.trim().replace(/\s+/g, ','));
+          const seed = Math.floor(Math.random() * 9000) + 1000;
+          urls = Array.from({length: 5}, (_, i) =>
+            `https://loremflickr.com/800/600/${kw}?random=${seed + i}`
+          );
+        } else if (src === 'nasa') {
+          // NASA Image Library — all space/science, no key needed
+          const res = await fetch(
+            `https://images-api.nasa.gov/search?q=${encodeURIComponent(q)}&media_type=image&page_size=100`
+          );
+          const data  = await res.json();
+          const items = (data.collection?.items || []).filter(i => i.links?.[0]?.href);
+          for (let i = items.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [items[i], items[j]] = [items[j], items[i]];
+          }
+          urls = items.slice(0, 5).map(i => i.links[0].href);
+        } else if (src === 'metmuseum') {
+          // Metropolitan Museum of Art — public domain, no key needed
+          const sRes  = await fetch(`https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&isPublicDomain=true&q=${encodeURIComponent(q)}`);
+          const sData = await sRes.json();
+          const ids   = (sData.objectIDs || []).slice(0, 60);
+          for (let i = ids.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [ids[i], ids[j]] = [ids[j], ids[i]];
+          }
+          const details = await Promise.all(
+            ids.slice(0, 10).map(id =>
+              fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`)
+                .then(r => r.json()).catch(() => ({}))
+            )
+          );
+          urls = details.filter(d => d.primaryImageSmall).map(d => d.primaryImageSmall).slice(0, 5);
+        } else {
+          // Wikimedia Commons — improved query with filetype:bitmap filter
+          const res = await fetch(
+            `https://commons.wikimedia.org/w/api.php?action=query&generator=search` +
+            `&gsrsearch=${encodeURIComponent(q + ' filetype:bitmap')}&gsrnamespace=6&gsrlimit=40` +
+            `&prop=imageinfo&iiprop=url|mime&iilimit=1&iiurlwidth=800&format=json&origin=*`
+          );
+          const data = await res.json();
+          urls = Object.values(data.query?.pages || {})
+            .filter(p => {
+              const info = p.imageinfo?.[0];
+              if (!info?.mime?.startsWith('image/')) return false;
+              const url = (info.thumburl || info.url || '').toLowerCase();
+              return !excludeWords.some(w => url.includes(w));
+            })
+            .map(p => p.imageinfo[0].thumburl || p.imageinfo[0].url)
+            .slice(0, 5);
+        }
+      }
+
+      if (urls.length === 0) throw new Error('no images returned');
+      customImages = urls;
+      if (theme !== 'custom') saveBgCache(theme, urls);
+      $bgStatus.textContent = `${urls.length} images ready`;
+      $bgStatus.className = '';
+      // Refresh current level background if game is running
+      if (!menuActive) loadLevelImage();
+    } catch (err) {
+      customImages = null;
+      $bgStatus.textContent = 'fetch failed — using local';
+      $bgStatus.className = 'error';
+    }
+  }
+
+  $bgTheme.onchange = () => fetchBgImages($bgTheme.value);
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const $qixToggle = document.getElementById('qix-toggle');
+  $qixToggle.onclick = () => {
+    qixProcedural = !qixProcedural;
+    $qixToggle.textContent = 'Qix: ' + (qixProcedural ? 'Classic' : 'Sprite');
+  };
+
+  // Procedural Qix generation config
+  let qixConfig = { segments: 8, armLen: 4.5, rotSpeed: 1.0, lineWidth: 2.5, glowBlur: 6, colorMode: 'rainbow', hue: 180 };
+  let qixPreviewRAF = null;
+
+  // Background search keyword customisation
+  const BG_SPACE_DEFAULTS          = ['nebula','galaxy','cosmos','deep space','aurora'];
+  const BG_ART_DEFAULTS            = ['impressionism','baroque painting','renaissance portrait','watercolor landscape','still life oil painting'];
+  const BG_ANIME_DEFAULTS          = ['neko','kitsune','waifu'];
+  const BG_CUSTOM_SOURCES_DEFAULTS = ['loremflickr','wikimedia'];
+  const BG_CUSTOM_SOURCES_ALL      = [
+    { id: 'loremflickr', label: 'Flickr (photography)' },
+    { id: 'wikimedia',   label: 'Wikimedia Commons'    },
+    { id: 'nasa',        label: 'NASA Images'          },
+    { id: 'metmuseum',   label: 'Met Museum art'       },
+  ];
+  let bgSpaceQueries    = [...BG_SPACE_DEFAULTS];
+  let bgArtQueries      = [...BG_ART_DEFAULTS];
+  let bgAnimeCategories = [...BG_ANIME_DEFAULTS];
+  let bgAnimeCustomTags = [];
+  let bgCustomSources   = [...BG_CUSTOM_SOURCES_DEFAULTS];
+  let bgCustomInclude   = '';
+  let bgCustomExclude   = '';
+
+  let grid, player, enemies, sparxes, score, lives, drawing, pendingDraw, keys, gameOver, tLast;
+  let lastTrailC, lastTrailR, trailPath, drawStartC, drawStartR;
+  let level, bgImage, bgLoaded, bgCredit, levelComplete, levelCompleteTime, won;
+  let menuActive, paused, lifeFlashTime;
+  let explosion, exploding, respawnTime;
+  const EXPLOSION_DURATION = 900;
+  const INVULNERABLE_DURATION = 2000; // ms grace period after respawn
+  const MAX_LIVES = 3;
+
+  // Sprite sheets — 64×64 px frames arranged in a grid
+  const SPRITE_FRAME_SIZE = 64;
+  const SPRITE_ANIM_RATE  = 4;   // advance one frame every N game ticks (~15 fps at 60 fps)
+  const ALL_SPRITE_DEFS  = _manifest.sprites;        // enemy sprites
+  const ALL_PLAYER_DEFS  = _manifest.player || [];   // player sprites
+  const ALL_SPARX_DEFS   = _manifest.sparx  || [];
+  const ALL_BONUS_DEFS   = _manifest.bonus  || [];
+
+  function loadSpriteImg(def) {
+    const img = new Image();
+    img.src = def.src;
+    img._frameSize = def.frameSize || 64;
+    return img;
+  }
+
+  const spriteImgs = ALL_SPRITE_DEFS.map(loadSpriteImg);
+  const playerImgs = ALL_PLAYER_DEFS.map(loadSpriteImg);
+  const sparxImgs  = ALL_SPARX_DEFS.map(loadSpriteImg);
+  const bonusImgs  = ALL_BONUS_DEFS.map(loadSpriteImg);
+  let enabledSpriteIdxs = ALL_SPRITE_DEFS.map((_, i) => i); // all enabled by default
+  let enabledSparxIdxs  = [];  // which sparx sprites are active (-1 pool = all)
+  let playerSkinIdx = -1;  // -1 = procedural rhomboid
+  let qixSkinIdx    = -1;  // -1 = procedural / random pool
+  let sparxSkinIdx  = -1;  // -1 = procedural / random pool
+
+  // Bonus objects
+  let bonusEnabled    = false;
+  let bonusSpriteIdx  = -1;
+  let bonusCountBase  = 2;
+  let bonusEntities   = [];
+  const BONUS_SPEED    = 0.5;
+  const BONUS_PTS_BASE = 2000;
+  let playerFrame = 0, playerFrameTick = 0;
+  let spritePreviewCanvases = [];
+  let spritePreviewInterval = null;
+
+  function startSpritePreview() {
+    if (spritePreviewInterval) return;
+    spritePreviewInterval = setInterval(() => {
+      const t = performance.now() / 1000;
+      for (const p of spritePreviewCanvases) {
+        const img = p.img;
+        p.ctx.clearRect(0, 0, p.size, p.size);
+        if (!img || !img.complete || img.naturalWidth === 0) {
+          if (p.onDraw) p.onDraw(p.ctx, p.size, t);
+          continue;
+        }
+        const fsz  = img._frameSize || SPRITE_FRAME_SIZE;
+        const cols  = Math.floor(img.naturalWidth  / fsz);
+        const total = cols * Math.floor(img.naturalHeight / fsz);
+        p.frame = (p.frame + 1) % (total || 1);
+        const sx = (p.frame % cols) * fsz;
+        const sy = Math.floor(p.frame / cols) * fsz;
+        p.ctx.drawImage(img, sx, sy, fsz, fsz, 0, 0, p.size, p.size);
+      }
+    }, 80); // ~12 fps
+  }
+  function stopSpritePreview() {
+    if (spritePreviewInterval) { clearInterval(spritePreviewInterval); spritePreviewInterval = null; }
+  }
+  function startQixPreview() {
+    if (qixPreviewRAF !== null) return;
+    const cnv = document.getElementById('qix-preview');
+    if (!cnv) return;
+    const pCtx  = cnv.getContext('2d');
+    const pCell = cnv.width / 5;  // ~26px so armLen*4.5 fills ~130px nicely
+    const fakeE = { x: cnv.width / 2, y: cnv.height / 2, hueOffset: Math.random() * 360 };
+    const t0 = performance.now();
+    function frame() {
+      const t = (performance.now() - t0) / 1000;
+      pCtx.clearRect(0, 0, cnv.width, cnv.height);
+      drawQixProcedural(fakeE, t, pCtx, pCell);
+      qixPreviewRAF = requestAnimationFrame(frame);
+    }
+    qixPreviewRAF = requestAnimationFrame(frame);
+  }
+  function stopQixPreview() {
+    if (qixPreviewRAF !== null) { cancelAnimationFrame(qixPreviewRAF); qixPreviewRAF = null; }
+  }
+  function randomSprite() {
+    const pool = enabledSpriteIdxs.length > 0 ? enabledSpriteIdxs : ALL_SPRITE_DEFS.map((_, i) => i);
+    return spriteImgs[pool[Math.floor(Math.random() * pool.length)]];
+  }
+  function randomSparxSprite() {
+    if (sparxImgs.length === 0) return randomSprite(); // fall back to enemy pool
+    const pool = enabledSparxIdxs.length > 0 ? enabledSparxIdxs : sparxImgs.map((_, i) => i);
+    return sparxImgs[pool[Math.floor(Math.random() * pool.length)]];
+  }
+  function spriteReady(img) { return img && img.complete && img.naturalWidth > 0; }
+
+  // Reusable offscreen canvas for tinting (avoids per-frame allocation)
+  const tintCanvas = document.createElement('canvas');
+  tintCanvas.width = tintCanvas.height = SPRITE_FRAME_SIZE;
+  const tintCtx = tintCanvas.getContext('2d');
+
+  function drawSpriteFrame(img, frame, dx, dy, dw, dh, tint, fsz) {
+    if (!spriteReady(img)) return false;
+    const fsize = fsz || SPRITE_FRAME_SIZE;
+    const cols  = Math.floor(img.naturalWidth  / fsize);
+    const total = cols * Math.floor(img.naturalHeight / fsize);
+    const f  = frame % (total || 1);
+    const sx = (f % cols) * fsize;
+    const sy = Math.floor(f / cols) * fsize;
+    if (tint) {
+      // Draw frame onto offscreen canvas, then overlay tint only on non-transparent pixels
+      tintCtx.clearRect(0, 0, SPRITE_FRAME_SIZE, SPRITE_FRAME_SIZE);
+      tintCtx.globalCompositeOperation = 'source-over';
+      tintCtx.globalAlpha = 1;
+      tintCtx.drawImage(img, sx, sy, fsize, fsize, 0, 0, SPRITE_FRAME_SIZE, SPRITE_FRAME_SIZE);
+      tintCtx.globalCompositeOperation = 'source-atop';
+      tintCtx.globalAlpha = 0.65;
+      tintCtx.fillStyle = tint;
+      tintCtx.fillRect(0, 0, SPRITE_FRAME_SIZE, SPRITE_FRAME_SIZE);
+      ctx.drawImage(tintCanvas, dx - dw/2, dy - dh/2, dw, dh);
+    } else {
+      ctx.drawImage(img, sx, sy, fsize, fsize, dx - dw/2, dy - dh/2, dw, dh);
+    }
+    return true;
+  }
+
+  function tickAnim(entity) {
+    entity.frameTick = (entity.frameTick + 1) % SPRITE_ANIM_RATE;
+    if (entity.frameTick === 0) entity.frame++;
+  }
+
+  function init() {
+    grid = makeGrid(COLS, ROWS, EMPTY);
+    // Build border walls
+    for (let c=0;c<COLS;c++){ grid[0][c]=WALL; grid[ROWS-1][c]=WALL; }
+    for (let r=0;r<ROWS;r++){ grid[r][0]=WALL; grid[r][COLS-1]=WALL; }
+
+    player = { x: (COLS/2|0)*CELL+CELL/2, y: (ROWS-1)*CELL+CELL/2, vx:0, vy:0, onWall:true };
+    enemies = [];
+    for (let i=0;i<2;i++) enemies.push(spawnEnemy());
+
+    sparxes = [
+      { cx: 1,       cy: 0,       dir: [1, 0],  cw: true,  timer: 0, sprite: randomSparxSprite(), frame: 0, frameTick: 0, _spd: SPARX_SPEED },
+      { cx: COLS-2,  cy: ROWS-1,  dir: [-1, 0], cw: false, timer: 0, sprite: randomSparxSprite(), frame: 0, frameTick: 0, _spd: SPARX_SPEED },
+    ];
+
+    drawing = false; pendingDraw = false;
+    lastTrailC = -1; lastTrailR = -1; trailPath = [];
+    explosion = null; exploding = false; enemyExplosions = []; respawnTime = 0;
+    score = 0; lives = MAX_LIVES; gameOver = false; won = false; paused = false;
+    playBGM(bgmPool[0]);
+    levelComplete = false; levelCompleteTime = 0; lifeFlashTime = 0; tLast = 0;
+    level = 1;
+    bonusEntities = [];
+    if (bonusEnabled) spawnBonusForLevel();
+    loadLevelImage();
+    updateHUD();
+  }
+
+  function loadLevelImage() {
+    bgLoaded = false;
+    bgImage = new Image();
+    bgImage.onload = () => { bgLoaded = true; };
+    if (customImages && customImages.length > 0) {
+      bgImage.src = customImages[(level - 1) % customImages.length]; // online theme (any level)
+      const themeCredits = {
+        landscape: 'Photos: Picsum Photos (CC0)',
+        city:      'Photos: Picsum Photos (CC0)',
+        nature:    'Photos: Picsum Photos (CC0)',
+        space:     'Images: NASA Image Gallery',
+        anime:     'Art: nekos.best',
+        art:       'Art: Metropolitan Museum of Art (Public Domain)',
+        custom:    'Photos: Wikimedia Commons (CC BY-SA)',
+      };
+      bgCredit = themeCredits[$bgTheme.value] || '';
+    } else if ($bgTheme.value === 'local' && apodImageUrl && level % IMAGES.length === 0) {
+      bgImage.src = apodImageUrl;                              // APOD on every 5th level (local theme only)
+      bgCredit = apodTitle ? 'NASA APOD: ' + apodTitle : '';
+    } else {
+      bgImage.src = IMAGES[(level - 1) % IMAGES.length];      // local fallback
+      bgCredit = '';
+    }
+  }
+
+  function nextLevel() {
+    levelComplete = false;
+    level++;
+    // Reset grid for new level, keep score and lives
+    grid = makeGrid(COLS, ROWS, EMPTY);
+    for (let c=0;c<COLS;c++){ grid[0][c]=WALL; grid[ROWS-1][c]=WALL; }
+    for (let r=0;r<ROWS;r++){ grid[r][0]=WALL; grid[r][COLS-1]=WALL; }
+    player = { x: (COLS/2|0)*CELL+CELL/2, y: (ROWS-1)*CELL+CELL/2, vx:0, vy:0, onWall:true };
+    enemies = [];
+    const numEnemies = Math.min(2 + Math.floor((level - 1) * 0.6), 8);
+    for (let i = 0; i < numEnemies; i++) enemies.push(spawnEnemy());
+    const sparxSpd = Math.max(4, SPARX_SPEED - Math.floor((level - 1) * 0.4));
+    sparxes = [
+      { cx: 1,      cy: 0,      dir: [1, 0],  cw: true,  timer: 0, sprite: randomSparxSprite(), frame: 0, frameTick: 0, _spd: sparxSpd },
+      { cx: COLS-2, cy: ROWS-1, dir: [-1, 0], cw: false, timer: 0, sprite: randomSparxSprite(), frame: 0, frameTick: 0, _spd: sparxSpd },
+    ];
+    drawing = false; pendingDraw = false;
+    lastTrailC = -1; lastTrailR = -1; trailPath = [];
+    explosion = null; exploding = false; enemyExplosions = []; respawnTime = 0;
+    bonusEntities = [];
+    if (bonusEnabled) spawnBonusForLevel();
+    playBGM(bgmPool[(level - 1) % bgmPool.length]);
+    loadLevelImage();
+    updateHUD();
+  }
+
+  function spawnEnemy(){
+    const angle = Math.random()*Math.PI*2;
+    // Distribute spawns across the interior to prevent easy border cuts
+    const margin = 3;
+    const innerCols = COLS - 2 * margin;
+    const innerRows = ROWS - 2 * margin;
+    const cx = margin + Math.floor(Math.random() * innerCols);
+    const cy = margin + Math.floor(Math.random() * innerRows);
+    const x = cx * CELL + CELL / 2;
+    const y = cy * CELL + CELL / 2;
+    const speedScale = Math.min(1 + 0.06 * (level - 1), 2.5);
+    const spd = ENEMY_SPEED * speedScale;
+    return { x, y, vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd, sprite: randomSprite(), frame: 0, frameTick: 0, hueOffset: Math.random() * 360 };
+  }
+
+  // ── Bonus objects ─────────────────────────────────────────────────────────
+  function spawnBonusForLevel() {
+    const count = Math.min(bonusCountBase + Math.floor((level - 1) * 0.3), 6);
+    for (let i = 0; i < count; i++) bonusEntities.push(spawnBonus());
+  }
+
+  function spawnBonus() {
+    const margin = 3;
+    const cx = margin + Math.floor(Math.random() * (COLS - 2 * margin));
+    const cy = margin + Math.floor(Math.random() * (ROWS - 2 * margin));
+    const angle = Math.random() * Math.PI * 2;
+    return {
+      x: cx * CELL + CELL / 2,
+      y: cy * CELL + CELL / 2,
+      vx: Math.cos(angle) * BONUS_SPEED,
+      vy: Math.sin(angle) * BONUS_SPEED,
+      frame: 0, frameTick: 0, changeTimer: 0,
+    };
+  }
+
+  function updateBonus() {
+    const inWall = (x, y) => {
+      const c = Math.round(x / CELL - 0.5), r = Math.round(y / CELL - 0.5);
+      return !inside(c, r) || grid[r][c] === WALL || grid[r][c] === FILLED;
+    };
+    for (const b of bonusEntities) {
+      b.changeTimer++;
+      if (b.changeTimer > 150 + Math.floor(Math.random() * 150)) {
+        const angle = Math.random() * Math.PI * 2;
+        b.vx = Math.cos(angle) * BONUS_SPEED;
+        b.vy = Math.sin(angle) * BONUS_SPEED;
+        b.changeTimer = 0;
+      }
+      let nx = b.x + b.vx, ny = b.y + b.vy;
+      if (inWall(nx, ny)) {
+        b.vx = -b.vx; nx = b.x + b.vx;
+        if (inWall(nx, ny)) {
+          b.vy = -b.vy; ny = b.y + b.vy;
+          if (inWall(nx, ny)) { nx = b.x; ny = b.y; }
+        }
+      }
+      b.x = nx; b.y = ny;
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Draw a procedural Sparx: bright animated electric spark crawling the border
+  function drawSparxProcedural(sx, sy, timeSec) {
+    const hue  = (timeSec * 260) % 360;
+    const hue2 = (hue + 40) % 360;
+    ctx.save();
+    ctx.shadowColor = `hsl(${hue},100%,75%)`;
+    ctx.shadowBlur = 12;
+    // Animated radiating rays
+    const numRays = 6;
+    for (let i = 0; i < numRays; i++) {
+      const angle  = (i / numRays) * Math.PI * 2 + timeSec * 9;
+      const rayLen = CELL * (0.7 + 0.45 * Math.abs(Math.sin(timeSec * 14 + i * 1.5)));
+      ctx.strokeStyle = `hsl(${(hue + i * 22) % 360},100%,78%)`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + Math.cos(angle) * rayLen, sy + Math.sin(angle) * rayLen);
+      ctx.stroke();
+    }
+    // Bright core
+    const coreR = CELL * (0.28 + 0.12 * Math.sin(timeSec * 20));
+    const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, coreR * 2.2);
+    grad.addColorStop(0, `hsl(${hue2},100%,98%)`);
+    grad.addColorStop(0.4, `hsl(${hue},100%,72%)`);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(sx, sy, coreR * 2.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Draw a procedural Qix: multicolor rotating line segments like the original arcade
+  // pCtx / pCell let you draw on an alternate canvas (used by the Advanced panel preview)
+  function drawQixProcedural(e, timeSec, pCtx, pCell) {
+    const c  = pCtx  || ctx;
+    const C  = pCell || CELL;
+    const cx = e.x, cy = e.y;
+    const SEG = qixConfig.segments;
+    const len = C * qixConfig.armLen;
+    const rs  = qixConfig.rotSpeed;
+    c.save();
+    c.lineWidth = qixConfig.lineWidth;
+    for (let s = 0; s < SEG; s++) {
+      let hue, sat = '100%', lit = '70%';
+      switch (qixConfig.colorMode) {
+        case 'mono':
+          hue = qixConfig.hue;
+          lit = (55 + (s / SEG) * 30) + '%';
+          break;
+        case 'duo':
+          hue = s % 2 === 0 ? qixConfig.hue : (qixConfig.hue + 180) % 360;
+          break;
+        case 'pastel':
+          hue = (e.hueOffset + s * (360 / SEG) + timeSec * 60 * rs) % 360;
+          sat = '55%'; lit = '82%';
+          break;
+        case 'neon':
+          hue = (e.hueOffset + s * (360 / SEG) + timeSec * 140 * rs) % 360;
+          lit = '80%';
+          break;
+        default: // rainbow
+          hue = (e.hueOffset + s * (360 / SEG) + timeSec * 100 * rs) % 360;
+      }
+      const phase1 = (s / SEG) * Math.PI * 2;
+      const phase2 = ((s + 1) / SEG) * Math.PI * 2;
+      const a1 = timeSec * 2.1 * rs + phase1 + Math.sin(timeSec * 1.3 * rs + s) * 1.8;
+      const b1 = timeSec * 1.8 * rs + phase1 * 1.1 + Math.cos(timeSec * 0.9 * rs + s * 0.6) * 1.4;
+      const r1 = len * (0.4 + 0.6 * Math.abs(Math.sin(timeSec * 0.7 * rs + s * 0.9)));
+      const a2 = timeSec * 2.1 * rs + phase2 + Math.sin(timeSec * 1.3 * rs + s + 1) * 1.8;
+      const b2 = timeSec * 1.8 * rs + phase2 * 1.1 + Math.cos(timeSec * 0.9 * rs + (s + 1) * 0.6) * 1.4;
+      const r2 = len * (0.4 + 0.6 * Math.abs(Math.sin(timeSec * 0.7 * rs + (s + 1) * 0.9)));
+      c.strokeStyle = `hsl(${hue},${sat},${lit})`;
+      c.shadowColor  = `hsl(${hue},100%,70%)`;
+      c.shadowBlur   = qixConfig.glowBlur;
+      c.beginPath();
+      c.moveTo(cx + Math.cos(a1) * r1, cy + Math.sin(b1) * r1);
+      c.lineTo(cx + Math.cos(a2) * r2, cy + Math.sin(b2) * r2);
+      c.stroke();
+    }
+    c.restore();
+  }
+
+  // Procedural bonus object: rotating 5-pointed star with rainbow colour
+  function drawBonusProcedural(b, timeSec) {
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    const t    = timeSec + (b.x + b.y) * 0.003;
+    const hue  = (t * 90) % 360;
+    const outer = CELL * 0.55, inner = CELL * 0.22;
+    ctx.rotate(t * 1.2);
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = (i * Math.PI) / 5 - Math.PI / 2;
+      const r = i % 2 === 0 ? outer : inner;
+      i === 0 ? ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r)
+              : ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = `hsl(${hue},100%,72%)`;
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = `hsl(${hue},100%,70%)`;
+    ctx.shadowBlur = 12;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, inner * (0.8 + 0.2 * Math.sin(t * 4)), 0, Math.PI * 2);
+    ctx.strokeStyle = `hsl(${(hue + 60) % 360},100%,80%)`;
+    ctx.lineWidth = 1; ctx.shadowBlur = 6;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  const $resumeBtn = document.getElementById('resume-btn');
+  const $resumeRow = document.getElementById('resume-row');
+
+  function togglePause() {
+    paused = !paused;
+    if (paused) {
+      $menuOpts.classList.remove('hidden');
+      $resumeRow.style.display = 'flex';
+      bgAudio.pause();
+    } else {
+      $menuOpts.classList.add('hidden');
+      $resumeRow.style.display = 'none';
+      if (!audioMuted && currentBGMSrc) bgAudio.play().catch(() => {});
+    }
+  }
+
+  // Input
+  keys = new Set();
+  const isTyping = () => { const t = document.activeElement?.tagName; return t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT'; };
+  addEventListener('keydown', e => { if (isTyping()) return; if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key)) e.preventDefault(); keys.add(e.key); });
+  addEventListener('keyup',   e => { if (isTyping()) return; keys.delete(e.key); });
+  addEventListener('keydown', e => { if (!isTyping() && (e.key === 'd' || e.key === 'D')) $debug.classList.toggle('visible'); });
+  const $advPanel  = document.getElementById('adv-panel');
+  const $advToggle = document.getElementById('adv-toggle');
+
+  addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (!$advPanel.classList.contains('hidden')) { $advPanel.classList.add('hidden'); e.preventDefault(); return; }
+      if (!isTyping() && !menuActive && !gameOver) { togglePause(); e.preventDefault(); }
+    }
+  });
+  $resumeBtn.onclick = () => togglePause();
+  $advToggle.onclick = () => {
+    $advPanel.classList.toggle('hidden');
+    if (!$advPanel.classList.contains('hidden')) { startSpritePreview(); startQixPreview(); }
+    else { stopSpritePreview(); stopQixPreview(); }
+  };
+  document.getElementById('adv-close').onclick = () => { $advPanel.classList.add('hidden'); stopPreview(); stopSpritePreview(); stopQixPreview(); };
+  $restart.onclick = () => {
+    if (paused) { paused = false; $resumeRow.style.display = 'none'; }
+    menuActive = true; $hud.classList.add('hidden'); $menuOpts.classList.remove('hidden');
+    stopBGM(); playBGM(menuMusicSrc);
+  };
+
+  // ── Touch controls ──────────────────────────────────────────────────────
+  const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  const $touchControls = document.getElementById('touch-controls');
+  const $drawBtn = document.getElementById('draw-btn');
+
+  if (isTouchDevice) {
+    $touchControls.classList.add('visible');
+
+    // Recalculate outer-wrap sizing to account for touch controls height
+    const recalcLayout = () => {
+      const touchH = $touchControls.offsetHeight || 0;
+      const hudH = $hud.offsetHeight || 0;
+      const gap = 4;
+      const reservedH = touchH + hudH + gap * 2;
+      const ow = document.getElementById('outer-wrap');
+      ow.style.width = `min(100vw, calc((100vh - ${reservedH}px) * 800 / 600))`;
+    };
+    // Run after layout settles
+    requestAnimationFrame(() => requestAnimationFrame(recalcLayout));
+    addEventListener('resize', recalcLayout);
+
+    // D-pad buttons
+    document.querySelectorAll('.dpad-btn').forEach(btn => {
+      const dir = btn.dataset.dir;
+
+      btn.addEventListener('touchstart', e => {
+        e.preventDefault();
+        keys.add(dir);
+        btn.classList.add('pressed');
+      }, { passive: false });
+
+      btn.addEventListener('touchend', e => {
+        e.preventDefault();
+        keys.delete(dir);
+        btn.classList.remove('pressed');
+      }, { passive: false });
+
+      btn.addEventListener('touchcancel', e => {
+        keys.delete(dir);
+        btn.classList.remove('pressed');
+      });
+    });
+
+    // DRAW (Space) button
+    $drawBtn.addEventListener('touchstart', e => {
+      e.preventDefault();
+      keys.add(' ');
+      $drawBtn.classList.add('pressed');
+    }, { passive: false });
+
+    $drawBtn.addEventListener('touchend', e => {
+      e.preventDefault();
+      keys.delete(' ');
+      $drawBtn.classList.remove('pressed');
+    }, { passive: false });
+
+    $drawBtn.addEventListener('touchcancel', () => {
+      keys.delete(' ');
+      $drawBtn.classList.remove('pressed');
+    });
+
+    // Tap on canvas to start / continue (replaces "PRESS SPACE")
+    canvas.addEventListener('touchstart', e => {
+      e.preventDefault();
+      _startMenuMusic();
+      if (menuActive) {
+        keys.add(' ');
+        setTimeout(() => keys.delete(' '), 100);
+      } else if (levelComplete) {
+        keys.add(' ');
+        setTimeout(() => keys.delete(' '), 100);
+      }
+    }, { passive: false });
+  }
+
+  function updatePlayer(){
+    const speed = drawing ? DRAW_SPEED : SPEED;
+    player.vx = (keys.has('ArrowRight')? speed:0) + (keys.has('ArrowLeft')? -speed:0);
+    player.vy = (keys.has('ArrowDown') ? speed:0) + (keys.has('ArrowUp')   ? -speed:0);
+
+    // Fix #3: 4-directional movement only — no diagonals
+    if (player.vx !== 0) player.vy = 0;
+
+    let pxNext = player.x + player.vx;
+    let pyNext = player.y + player.vy;
+
+    // Restrict movement: block FILLED (cleared area) always; block EMPTY unless drawing
+    if (!drawing) {
+      const cCurr = Math.round(player.x / CELL - 0.5);
+      const rCurr = Math.round(player.y / CELL - 0.5);
+      const cNext = Math.round(pxNext / CELL - 0.5);
+      const rNext = Math.round(pyNext / CELL - 0.5);
+      const blockCell = (cell) => cell === FILLED || (!keys.has(' ') && cell === EMPTY);
+      if (inside(cNext, rCurr) && blockCell(grid[rCurr][cNext])) pxNext = player.x;
+      if (inside(cCurr, rNext) && blockCell(grid[rNext][cCurr])) pyNext = player.y;
+    }
+
+    // Arm pendingDraw when space is pressed while on the border wall
+    if (!drawing && keys.has(' ') && player.onWall) pendingDraw = true;
+
+    // Move; constrain to grid bounds
+    player.x = Math.max(CELL/2, Math.min(W-CELL/2, pxNext));
+    player.y = Math.max(CELL/2, Math.min(H-CELL/2, pyNext));
+
+    // Cell interactions
+    const cc = Math.round(player.x / CELL - 0.5);
+    const rr = Math.round(player.y / CELL - 0.5);
+
+    if (drawing) {
+      if (grid[rr][cc] === WALL) {
+        drawing = false; player.onWall = true;
+        if (cc === drawStartC && rr === drawStartR) {
+          // Backtracked to departure cell — cancel, erase trail
+          for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) if (grid[y][x]===TRAIL) grid[y][x]=EMPTY;
+        } else {
+          // Real closure — carve area
+          carveArea();
+          for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) if (grid[y][x]===TRAIL) grid[y][x]=WALL;
+        }
+        lastTrailC = -1; lastTrailR = -1; trailPath = [];
+      } else if (grid[rr][cc] === TRAIL && !(cc === lastTrailC && rr === lastTrailR)) {
+        // Stepped back onto own trail — backtrack: erase cells after this point
+        const idx = trailPath.findIndex(([tc, tr]) => tc === cc && tr === rr);
+        if (idx !== -1) {
+          for (let i = idx + 1; i < trailPath.length; i++) grid[trailPath[i][1]][trailPath[i][0]] = EMPTY;
+          trailPath = trailPath.slice(0, idx + 1);
+          lastTrailC = cc; lastTrailR = rr;
+        }
+      } else {
+        grid[rr][cc] = TRAIL;
+        trailPath.push([cc, rr]);
+        lastTrailC = cc; lastTrailR = rr;
+      }
+    } else if (pendingDraw && grid[rr][cc] !== WALL) {
+      // Player stepped off the border — record departure wall cell, start drawing
+      const dx = player.vx !== 0 ? Math.sign(player.vx) : 0;
+      const dy = player.vy !== 0 ? Math.sign(player.vy) : 0;
+      drawStartC = cc - dx; drawStartR = rr - dy;
+      drawing = true; pendingDraw = false; player.onWall = false;
+      playSFX(sfxDrawStart);
+      grid[rr][cc] = TRAIL;
+      trailPath = [[cc, rr]];
+      lastTrailC = cc; lastTrailR = rr;
+    } else {
+      player.onWall = (grid[rr][cc] === WALL);
+      if (!player.onWall) pendingDraw = false; // left wall without drawing intent — cancel
+    }
+  }
+
+  function updateEnemies(){
+    for (const e of enemies){
+      const px = e.x, py = e.y; // last valid position
+
+      // Helper: check if a position lands in a WALL or FILLED cell
+      const inWall = (x, y) => {
+        const c = Math.round(x / CELL - 0.5), r = Math.round(y / CELL - 0.5);
+        return !inside(c, r) || grid[r][c] === WALL || grid[r][c] === FILLED;
+      };
+
+      // Try each reflection in order, always starting from (px, py)
+      let nx = px + e.vx, ny = py + e.vy;
+      if (inWall(nx, ny)) {
+        e.vx = -e.vx;
+        nx = px + e.vx; ny = py + e.vy;
+        if (inWall(nx, ny)) {
+          e.vx = -e.vx; e.vy = -e.vy;
+          nx = px + e.vx; ny = py + e.vy;
+          if (inWall(nx, ny)) {
+            e.vx = -e.vx;
+            nx = px + e.vx; ny = py + e.vy;
+            if (inWall(nx, ny)) {
+              // Truly cornered — stay put and pick a random direction
+              nx = px; ny = py;
+              const a = Math.random() * Math.PI * 2;
+              const curSpd = Math.hypot(e.vx, e.vy) || ENEMY_SPEED;
+              e.vx = Math.cos(a) * curSpd;
+              e.vy = Math.sin(a) * curSpd;
+            }
+          }
+        }
+      }
+
+      e.x = nx; e.y = ny;
+
+      // Trail collision -> lose life
+      const c2 = Math.round(e.x / CELL - 0.5);
+      const r2 = Math.round(e.y / CELL - 0.5);
+      if (inside(c2, r2) && grid[r2][c2] === TRAIL && !isInvulnerable()){ loseLife(); return; }
+    }
+  }
+
+  // Returns true if (x,y) is a WALL cell adjacent to at least one EMPTY cell or out-of-bounds.
+  // Sparx must only traverse walls that border unclaimed (EMPTY) space — not interior walls
+  // separating two filled regions, which would let them "teleport" through claimed areas.
+  function isBoundaryWall(x, y){
+    if (!inside(x, y) || grid[y][x] !== WALL) return false;
+    const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+    for (const [dx, dy] of dirs){
+      const nx = x+dx, ny = y+dy;
+      if (!inside(nx, ny) || grid[ny][nx] === EMPTY) return true;
+    }
+    return false;
+  }
+
+  function updateSparxes(){
+    for (const s of sparxes){
+      s.timer++;
+      if (s.timer < (s._spd ?? SPARX_SPEED)) continue;
+      s.timer = 0;
+
+      const [dx, dy] = s.dir;
+      // right = clockwise 90° in y-down screen coords: [-dy, dx]
+      const right = [-dy,  dx];
+      const left  = [ dy, -dx];
+      const straight = [dx, dy];
+      const reverse = [-dx, -dy];
+
+      const candidates = s.cw
+        ? [right, straight, left, reverse]
+        : [left, straight, right, reverse];
+
+      let moved = false;
+      for (const [ndx, ndy] of candidates){
+        const nx = s.cx + ndx, ny = s.cy + ndy;
+        if (inside(nx, ny) && grid[ny][nx] === WALL && isBoundaryWall(nx, ny)){
+          s.cx = nx; s.cy = ny; s.dir = [ndx, ndy];
+          moved = true;
+          break;
+        }
+      }
+      // If no candidate worked, Sparx stays put (shouldn't happen on a well-formed border)
+
+      // Kill player if Sparx occupies the same grid cell
+      const pc = Math.round(player.x / CELL - 0.5);
+      const pr = Math.round(player.y / CELL - 0.5);
+      if (s.cx === pc && s.cy === pr && !isInvulnerable()){ loseLife(); return; }
+    }
+  }
+
+  function carveArea(){
+    // We just closed a loop with TRAIL cells touching WALL. Decide which side to fill.
+    // Approach: flood fill from seed points on either side of the trail near the closure
+    // and choose the region WITHOUT an enemy.
+    const trailCells = [];
+    for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) if (grid[y][x]===TRAIL) trailCells.push([x,y]);
+    if (!trailCells.length) return;
+
+    const neighbors = [[1,0],[-1,0],[0,1],[0,-1]];
+
+    // Temporarily treat TRAIL/FILLED as walls for flood fill test
+    const blocked = (x,y) => !inside(x,y) || grid[y][x]===WALL || grid[y][x]===TRAIL || grid[y][x]===FILLED;
+
+    function fillFrom(seed){
+      const stack=[seed];
+      const visited = new Set();
+      let cells=[]; let touchesEnemy=false;
+      const key=(x,y)=>x+","+y;
+      while(stack.length){
+        const [x,y]=stack.pop();
+        const k=key(x,y); if(visited.has(k)) continue; visited.add(k);
+        if (blocked(x,y)) continue;
+        cells.push([x,y]);
+        for (const e of enemies){
+          const ce = Math.round(e.x / CELL - 0.5);
+          const re = Math.round(e.y / CELL - 0.5);
+          if (ce===x && re===y){ touchesEnemy=true; break; }
+        }
+        for (const [dx,dy] of neighbors) stack.push([x+dx,y+dy]);
+      }
+      return {cells, touchesEnemy};
+    }
+
+    // Collect distinct flood-fill regions by scanning EMPTY neighbors of ALL trail cells.
+    // Seeding only from trailCells[0] fails when that cell's neighbors are all on the same
+    // side of the trail (e.g. trail hugging a border), producing duplicate giant regions.
+    const regions = [];
+    const claimed = new Set();
+    const xy = (x, y) => x + ',' + y;
+    for (const [tx, ty] of trailCells) {
+      for (const [dx, dy] of neighbors) {
+        const nx = tx + dx, ny = ty + dy;
+        if (!inside(nx, ny) || grid[ny][nx] !== EMPTY) continue;
+        if (claimed.has(xy(nx, ny))) continue;       // already part of a known region
+        const region = fillFrom([nx, ny]);
+        if (region.cells.length === 0) continue;
+        regions.push(region);
+        for (const [cx, cy] of region.cells) claimed.add(xy(cx, cy));
+      }
+    }
+    if (regions.length === 0) return;
+
+    // Fill the smallest region; if it contains an enemy, that enemy is trapped and explodes
+    regions.sort((a,b) => a.cells.length - b.cells.length);
+    let choice = regions[0];
+    if (!choice) return;
+
+    // Detect enemies trapped inside the filled region
+    for (const e of [...enemies]) {
+      const ce = Math.round(e.x / CELL - 0.5);
+      const re = Math.round(e.y / CELL - 0.5);
+      if (choice.cells.some(([fcx, fcy]) => fcx === ce && fcy === re)) {
+        triggerEnemyExplosion(e.x, e.y);
+        score += 1000 * level;
+        enemies.splice(enemies.indexOf(e), 1);
+      }
+    }
+
+    // Bonus objects: if enclosed, award bonus points and respawn
+    if (bonusEnabled) {
+      for (const b of [...bonusEntities]) {
+        const cb = Math.round(b.x / CELL - 0.5);
+        const rb = Math.round(b.y / CELL - 0.5);
+        if (choice.cells.some(([fcx, fcy]) => fcx === cb && fcy === rb)) {
+          triggerEnemyExplosion(b.x, b.y);
+          score += BONUS_PTS_BASE * level;
+          bonusEntities.splice(bonusEntities.indexOf(b), 1);
+          bonusEntities.push(spawnBonus());
+          updateHUD();
+        }
+      }
+    }
+
+    for (const [x,y] of choice.cells){ grid[y][x]=FILLED; score += 10; }
+
+    // Convert remaining trail to wall
+    for (const [x,y] of trailCells) grid[y][x]=WALL;
+
+    playSFX(sfxClaim);
+
+    // Score and filled percent
+    updateHUD();
+
+    // Level complete check
+    if (percentFilled() >= levelTarget()) {
+      score += level * 1000; // level completion bonus
+      updateHUD();
+      levelComplete = true; levelCompleteTime = performance.now();
+      stopBGM();
+      playSFX(sfxLevelUp);
+    }
+  }
+
+  function percentFilled(){
+    let filled=0;
+    for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) if (grid[y][x]===FILLED) filled++;
+    const total = COLS*ROWS;
+    const border = COLS*2 + (ROWS-2)*2;
+    return Math.floor(filled / (total - border) * 100);
+  }
+
+  function triggerExplosion(x, y){
+    const particles = [];
+    const colors = ['#e76f51','#f4a261','#e9c46a','#ff3333','#ffffff'];
+    for (let i = 0; i < 28; i++){
+      const angle = (Math.PI * 2 * i / 28) + (Math.random() - 0.5) * 0.4;
+      const speed = 1.2 + Math.random() * 2.8;
+      particles.push({
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        r: 2 + Math.random() * 2.5,
+      });
+    }
+    explosion = { x, y, t0: performance.now(), particles };
+    exploding = true;
+  }
+
+  function triggerEnemyExplosion(x, y) {
+    playSFX(sfxKill);
+    const particles = [];
+    const colors = ['#ffff00','#ff00ff','#00ffff','#ffffff','#f4d35e','#80ff80'];
+    for (let i = 0; i < 32; i++) {
+      const angle = (Math.PI * 2 * i / 32) + (Math.random() - 0.5) * 0.5;
+      const speed = 1.0 + Math.random() * 3.5;
+      particles.push({
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        r: 2.5 + Math.random() * 3.5,
+      });
+    }
+    enemyExplosions.push({ x, y, t0: performance.now(), particles });
+  }
+
+  function doRespawn(){
+    for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) if (grid[y][x]===TRAIL) grid[y][x]=EMPTY;
+    lastTrailC = -1; lastTrailR = -1; trailPath = [];
+    player.x = (COLS/2|0)*CELL+CELL/2; player.y=(ROWS-1)*CELL+CELL/2; player.onWall=true; drawing=false; pendingDraw=false;
+    respawnTime = performance.now();
+  }
+
+  function isInvulnerable() {
+    return respawnTime > 0 && performance.now() - respawnTime < INVULNERABLE_DURATION;
+  }
+
+  function loseLife(){
+    lives--; lifeFlashTime = performance.now(); updateHUD();
+    triggerExplosion(player.x, player.y);
+    playSFX(sfxDeath);
+    if (lives<=0){ gameOver = true; stopBGM(); playSFX(sfxGameOver); }
+  }
+
+  function updateHUD(){
+    $level.textContent = level;
+    $score.textContent = score;
+    $filled.textContent = percentFilled();
+    let h = '';
+    for (let i = 0; i < MAX_LIVES; i++)
+      h += `<span class="life ${i < lives ? 'alive' : 'lost'}">♥</span>`;
+    $livesWrap.innerHTML = h;
+  }
+
+  function updateDebug(){
+    if (!$debug || !player || !$debug.classList.contains('visible')) return;
+    const cc = Math.round(player.x / CELL - 0.5);
+    const rr = Math.round(player.y / CELL - 0.5);
+    $debug.textContent =
+      'Player' +
+      '\n x: ' + player.x.toFixed(1) +
+      '  y: ' + player.y.toFixed(1) +
+      '\n col: ' + cc + '  row: ' + rr +
+      '\n vx: ' + player.vx.toFixed(2) + '  vy: ' + player.vy.toFixed(2) +
+      '\n onWall: ' + (player.onWall ? 'yes' : 'no') +
+      '\n drawing: ' + (drawing ? 'yes' : 'no');
+  }
+
+  // --- Render ---
+  function render(){
+    ctx.clearRect(0,0,W,H);
+
+    // ── Start menu (rendered before any game state is accessed) ──
+    if (menuActive){
+      const t = performance.now() / 1000;
+      ctx.fillStyle = '#080d12';
+      ctx.fillRect(0, 0, W, H);
+      for (let gx = 0; gx <= W; gx += 40){
+        ctx.strokeStyle = `rgba(30,80,100,${0.3 + 0.1*Math.sin(t+gx*0.05)})`;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,H); ctx.stroke();
+      }
+      for (let gy = 0; gy <= H; gy += 40){
+        ctx.strokeStyle = `rgba(30,80,100,${0.3 + 0.1*Math.sin(t+gy*0.05)})`;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke();
+      }
+      for (let i = 0; i < 24; i++){
+        const px = ((i*173 + t*18) % W);
+        const py = ((i*97  + t*12) % H);
+        ctx.fillStyle = `rgba(100,200,255,${0.15+0.1*Math.sin(t+i)})`;
+        ctx.fillRect(px, py, 2, 2);
+      }
+      ctx.textAlign = 'center';
+      const pulse = 1 + 0.03*Math.sin(t*2.5);
+      ctx.save();
+      ctx.shadowColor = '#1d9ab0'; ctx.shadowBlur = 40;
+      ctx.font = `bold ${Math.round(90*pulse)}px system-ui`;
+      ctx.fillStyle = '#e7f6ff';
+      ctx.fillText('QIXIT', W/2, H/2 - 60);
+      ctx.shadowBlur = 0; ctx.restore();
+      ctx.font = '16px system-ui'; ctx.fillStyle = '#5a8fa0';
+      ctx.fillText('Claim the field · Avoid the Qix', W/2, H/2 - 20);
+      ctx.strokeStyle = 'rgba(29,154,176,0.4)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(200,H/2+2); ctx.lineTo(W-200,H/2+2); ctx.stroke();
+      ctx.font = '14px system-ui'; ctx.fillStyle = '#4a6a78';
+      ctx.fillText(isTouchDevice ? 'D-pad to move  ·  Hold DRAW to claim  ·  Return to border to fill' : 'Arrow keys  ·  Hold Space to draw  ·  Return to border to fill', W/2, H/2+28);
+      ctx.font = '20px system-ui'; ctx.fillStyle = '#e76f51';
+      ctx.fillText('♥  ♥  ♥', W/2, H/2+70);
+      ctx.font = '11px system-ui'; ctx.fillStyle = '#3a5560';
+      ctx.fillText('3 LIVES', W/2, H/2+90);
+      if (Math.floor(t*2)%2===0){
+        ctx.font = 'bold 15px system-ui'; ctx.fillStyle = '#aaddff';
+        ctx.fillText(isTouchDevice ? 'TAP TO START' : 'PRESS SPACE TO START', W/2, H/2+128);
+      }
+      return;
+    }
+
+    // Dark background for unclaimed area
+    ctx.fillStyle = '#10161b';
+    ctx.fillRect(0, 0, W, H);
+
+    // Reveal background image on claimed (WALL + FILLED) cells using a clip path
+    if (bgLoaded) {
+      ctx.save();
+      ctx.beginPath();
+      for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) if (grid[y][x]===WALL||grid[y][x]===FILLED) ctx.rect(x*CELL, y*CELL, CELL, CELL);
+      ctx.clip();
+      ctx.drawImage(bgImage, 0, 0, W, H);
+      // Very subtle dark vignette so walls/grid lines stay readable against any image
+      ctx.fillStyle = 'rgba(8,16,24,0.18)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    } else {
+      // Fallback: solid teal for wall/filled cells
+      ctx.fillStyle = '#1d6c74';
+      for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) if (grid[y][x]===WALL||grid[y][x]===FILLED) ctx.fillRect(x*CELL, y*CELL, CELL, CELL);
+    }
+
+    // Trail
+    ctx.fillStyle = '#e9c46a';
+    for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) if (grid[y][x]===TRAIL) ctx.fillRect(x*CELL, y*CELL, CELL, CELL);
+
+    // Player (hidden while exploding; blinks during grace period)
+    const _inv = isInvulnerable();
+    if (!exploding && (!_inv || Math.floor(performance.now() / 100) % 2 === 0)) {
+      const cx = player.x, cy = player.y;
+      const _pImg = playerSkinIdx >= 0 ? playerImgs[playerSkinIdx] : null;
+      if (_pImg && spriteReady(_pImg)) {
+        // Sprite skin
+        playerFrameTick++;
+        if (playerFrameTick >= SPRITE_ANIM_RATE) {
+          playerFrameTick = 0;
+          const _pFsz   = _pImg._frameSize || SPRITE_FRAME_SIZE;
+          const _pCols  = Math.floor(_pImg.naturalWidth  / _pFsz);
+          const _pTotal = _pCols * Math.floor(_pImg.naturalHeight / _pFsz);
+          playerFrame = (playerFrame + 1) % (_pTotal || 1);
+        }
+        drawSpriteFrame(_pImg, playerFrame, cx, cy, CELL * 2, CELL * 2, null, _pImg._frameSize);
+      } else {
+        // Procedural animated glowing rhomboid
+        const t = performance.now() / 1000;
+        const pulse = 1 + 0.18 * Math.sin(t * 5);
+        const r = CELL * 0.72 * pulse;
+        const [rc, gc, bc] = drawing ? [244, 211, 94] : [231, 111, 81];
+        ctx.save();
+        ctx.shadowColor = `rgb(${rc},${gc},${bc})`;
+        ctx.shadowBlur = 14 + 8 * Math.sin(t * 3);
+        // Outer glow ring
+        const ro = r * 1.65;
+        ctx.strokeStyle = `rgba(${rc},${gc},${bc},0.35)`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - ro); ctx.lineTo(cx + ro, cy);
+        ctx.lineTo(cx, cy + ro); ctx.lineTo(cx - ro, cy);
+        ctx.closePath();
+        ctx.stroke();
+        // Main diamond fill + stroke
+        ctx.fillStyle = `rgba(${rc},${gc},${bc},0.2)`;
+        ctx.strokeStyle = `rgb(${rc},${gc},${bc})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r, cy);
+        ctx.lineTo(cx, cy + r); ctx.lineTo(cx - r, cy);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        // Inner bright core
+        const ri = r * 0.32;
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowBlur = 18;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - ri); ctx.lineTo(cx + ri, cy);
+        ctx.lineTo(cx, cy + ri); ctx.lineTo(cx - ri, cy);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // Explosion particles
+    if (explosion) {
+      const t = Math.min(1, (performance.now() - explosion.t0) / EXPLOSION_DURATION);
+      const dist = t * 55;
+      for (const p of explosion.particles) {
+        const px = explosion.x + p.vx * dist;
+        const py = explosion.y + p.vy * dist;
+        const alpha = 1 - t;
+        const radius = p.r * (1 - t * 0.6);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = p.color;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(px, py, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // Enemy kill explosions (rainbow burst, game continues)
+    const nowMs = performance.now();
+    enemyExplosions = enemyExplosions.filter(ex => nowMs - ex.t0 < EXPLOSION_DURATION);
+    for (const ex of enemyExplosions) {
+      const et = Math.min(1, (nowMs - ex.t0) / EXPLOSION_DURATION);
+      const dist = et * 70;
+      for (const p of ex.particles) {
+        const epx = ex.x + p.vx * dist;
+        const epy = ex.y + p.vy * dist;
+        ctx.save();
+        ctx.globalAlpha = 1 - et;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = p.color;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(epx, epy, p.r * (1 - et * 0.5), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // Enemies (Qix)
+    const tSec = performance.now() / 1000;
+    for (let ei = 0; ei < enemies.length; ei++) {
+      const e = enemies[ei];
+      const _qImg = qixSkinIdx >= 0 ? spriteImgs[qixSkinIdx] : null;
+      if (_qImg && spriteReady(_qImg)) {
+        tickAnim(e);
+        drawSpriteFrame(_qImg, e.frame, e.x, e.y, CELL*6, CELL*6, '#5599ff', _qImg._frameSize);
+      } else if (qixProcedural) {
+        drawQixProcedural(e, tSec);
+      } else {
+        tickAnim(e);
+        if (!drawSpriteFrame(e.sprite, e.frame, e.x, e.y, CELL*6, CELL*6, '#5599ff', e.sprite?._frameSize)) {
+          ctx.fillStyle = '#90caf9';
+          ctx.beginPath(); ctx.arc(e.x, e.y, CELL*0.4, 0, Math.PI*2); ctx.fill();
+        }
+      }
+    }
+
+    // APOD title watermark (local theme, every 5th level)
+    if ($bgTheme.value === 'local' && apodImageUrl && level % IMAGES.length === 0 && apodTitle && !levelComplete) {
+      ctx.save();
+      ctx.globalAlpha = 0.45;
+      ctx.font = '11px system-ui';
+      ctx.fillStyle = '#aaddff';
+      ctx.textAlign = 'right';
+      ctx.fillText('NASA APOD: ' + apodTitle, W - 8, H - 6);
+      ctx.textAlign = 'left';
+      ctx.restore();
+    }
+
+    // Sparx
+    for (let si = 0; si < sparxes.length; si++) {
+      const s = sparxes[si];
+      const sx = s.cx * CELL + CELL / 2;
+      const sy = s.cy * CELL + CELL / 2;
+      const _sImg = sparxSkinIdx >= 0 ? sparxImgs[sparxSkinIdx] || spriteImgs[sparxSkinIdx] : null;
+      if (_sImg && spriteReady(_sImg)) {
+        tickAnim(s);
+        drawSpriteFrame(_sImg, s.frame, sx, sy, CELL*4, CELL*4, '#ff4444', _sImg._frameSize);
+      } else if (qixProcedural) {
+        drawSparxProcedural(sx, sy, tSec);
+      } else {
+        tickAnim(s);
+        if (!drawSpriteFrame(s.sprite, s.frame, sx, sy, CELL*4, CELL*4, '#ff4444', s.sprite?._frameSize)) {
+          ctx.fillStyle = '#e53935';
+          ctx.beginPath(); ctx.arc(sx, sy, CELL*0.45, 0, Math.PI*2); ctx.fill();
+        }
+      }
+    }
+
+    // Bonus objects
+    if (bonusEnabled) {
+      const bIdx  = bonusSpriteIdx >= 0 ? bonusSpriteIdx : -1;
+      const bDef  = bIdx >= 0 ? ALL_BONUS_DEFS[bIdx] : null;
+      const bImg  = bIdx >= 0 ? bonusImgs[bIdx] : null;
+      const useSprite = bImg && bDef && spriteReady(bImg);
+      for (const b of bonusEntities) {
+        if (useSprite) {
+          b.frameTick = (b.frameTick + 1) % SPRITE_ANIM_RATE;
+          if (b.frameTick === 0) b.frame = (b.frame + 1) % Math.max(1, Math.floor(bImg.naturalWidth / (bDef.frameSize || 64)));
+          ctx.save();
+          if (b.vx < 0) { ctx.translate(b.x, b.y); ctx.scale(-1, 1); drawSpriteFrame(bImg, b.frame, 0, 0, CELL * 3, CELL * 3, null, bDef.frameSize); }
+          else { drawSpriteFrame(bImg, b.frame, b.x, b.y, CELL * 3, CELL * 3, null, bDef.frameSize); }
+          ctx.restore();
+        } else {
+          drawBonusProcedural(b, tSec);
+        }
+      }
+    }
+
+    // Level complete overlay
+    if (levelComplete){
+      const el = Math.min((performance.now() - levelCompleteTime) / 1000, 99); // seconds elapsed
+      const pct = percentFilled();
+      const stars = pct >= 90 ? 3 : pct >= 80 ? 2 : 1;
+
+      // Full image reveal with zoom-in effect
+      if (bgLoaded) {
+        const imgAlpha = Math.min(1, el * 1.8);
+        const imgScale = 1 + Math.max(0, 0.07 * (1 - imgAlpha));
+        ctx.save();
+        ctx.globalAlpha = imgAlpha;
+        ctx.translate(W/2, H/2);
+        ctx.scale(imgScale, imgScale);
+        ctx.drawImage(bgImage, -W/2, -H/2, W, H);
+        ctx.restore();
+      }
+
+      // Dark radial backdrop (semi-transparent to let image show through)
+      const bg = ctx.createRadialGradient(W/2, H/2, 60, W/2, H/2, W*0.75);
+      bg.addColorStop(0, 'rgba(5,10,20,0.72)');
+      bg.addColorStop(1, 'rgba(0,0,5,0.90)');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0,0,W,H);
+
+      // Confetti particles (pure math, no state)
+      for (let i = 0; i < 48; i++){
+        const hue  = (i * 47 + el * 80) % 360;
+        const col  = ((i * 1.618) % 1) * W;
+        const spd  = 60 + (i % 6) * 25;
+        const row  = ((el * spd + i * 37) % (H + 24)) - 12;
+        const tilt = el * (i % 2 === 0 ? 2 : -3) + i;
+        ctx.save();
+        ctx.translate(col, row);
+        ctx.rotate(tilt);
+        ctx.fillStyle = `hsl(${hue},100%,65%)`;
+        ctx.globalAlpha = 0.85;
+        ctx.fillRect(-3, -5, 6, 10);
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
+
+      ctx.textAlign = 'center';
+      ctx.shadowBlur = 0;
+
+      // Decorative horizontal lines
+      ctx.strokeStyle = 'rgba(244,211,94,0.3)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(80, H/2-108); ctx.lineTo(W-80, H/2-108); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(80, H/2+148); ctx.lineTo(W-80, H/2+148); ctx.stroke();
+
+      // "LEVEL X" — slides in from top
+      const slideIn = Math.min(el * 4, 1);
+      const titleY  = H/2 - 74 - (1-slideIn)*60;
+      ctx.globalAlpha = slideIn;
+      ctx.font = 'bold 28px system-ui';
+      ctx.fillStyle = '#aaddff';
+      ctx.letterSpacing = '6px';
+      ctx.fillText('LEVEL  ' + level, W/2, titleY);
+      ctx.letterSpacing = '0px';
+
+      // "COMPLETE!" — pulses
+      const pulse = 1 + 0.04 * Math.sin(el * 4);
+      ctx.font = `bold ${Math.round(58 * pulse)}px system-ui`;
+      ctx.shadowColor = '#f4d35e';
+      ctx.shadowBlur  = 24 + 10 * Math.sin(el * 3);
+      ctx.fillStyle   = '#f4d35e';
+      ctx.fillText('COMPLETE!', W/2, H/2 - 18);
+      ctx.shadowBlur = 0;
+
+      // Big % — counts up
+      const displayPct = Math.min(Math.round(el * 60), pct);
+      ctx.font = 'bold 72px system-ui';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(displayPct + '%', W/2, H/2 + 62);
+      ctx.font = '13px system-ui';
+      ctx.fillStyle = '#778899';
+      ctx.fillText('AREA CLAIMED', W/2, H/2 + 82);
+
+      // Stars — fade in one by one
+      const starSize = 26;
+      for (let i = 0; i < 3; i++){
+        const delay = 0.4 + i * 0.25;
+        const a = Math.max(0, Math.min(1, (el - delay) * 5));
+        const sc = 1 + Math.max(0, 0.4 - (el - delay) * 2); // pop-in scale
+        const sx = W/2 + (i - 1) * 44;
+        const sy = H/2 + 108;
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.translate(sx, sy);
+        ctx.scale(sc, sc);
+        ctx.font = `${starSize}px system-ui`;
+        ctx.fillStyle = i < stars ? '#f4d35e' : '#334';
+        ctx.fillText(i < stars ? '★' : '☆', 0, 0);
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
+
+      // Score bonus — slides up
+      const bonusA = Math.max(0, Math.min(1, (el - 0.6) * 3));
+      const bonusY = H/2 + 140 - (1 - bonusA) * 20;
+      ctx.globalAlpha = bonusA;
+      ctx.font = 'bold 17px system-ui';
+      ctx.fillStyle = '#f4d35e';
+      ctx.fillText('+ ' + (level * 1000).toLocaleString() + ' BONUS PTS', W/2, bonusY);
+      ctx.globalAlpha = 1;
+
+      // Blinking "press space" prompt
+      if (el > 0.8 && Math.floor(el * 2) % 2 === 0){
+        ctx.font = '13px system-ui';
+        ctx.fillStyle = '#556677';
+        ctx.fillText(isTouchDevice ? 'TAP TO CONTINUE' : 'PRESS SPACE TO CONTINUE', W/2, H - 28);
+      }
+
+      // Image credit (bottom-right, fades in after 0.5s)
+      if (bgCredit) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, (el - 0.5) * 2));
+        ctx.font = '10px system-ui';
+        ctx.fillStyle = '#4a7888';
+        ctx.textAlign = 'right';
+        ctx.fillText(bgCredit, W - 8, H - 8);
+        ctx.textAlign = 'left';
+        ctx.restore();
+      }
+    }
+
+    // Life-lost flash (brief red vignette)
+    const flashAge = (performance.now() - lifeFlashTime) / 1000;
+    if (flashAge < 0.5) {
+      const a = (0.5 - flashAge) * 1.4;
+      ctx.fillStyle = `rgba(220,30,30,${a.toFixed(2)})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // Game over overlay
+    if (gameOver){
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(0,0,W,H);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 40px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(won ? 'YOU WIN!' : 'GAME OVER', W/2, H/2 - 10);
+      ctx.font = '16px system-ui';
+      ctx.fillStyle = '#bbb';
+      ctx.fillText('Final Score: ' + score, W/2, H/2 + 24);
+      ctx.fillText('Press ☰ Menu', W/2, H/2 + 48);
+    }
+
+    // Paused dim
+    if (paused) {
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 34px system-ui';
+      ctx.fillStyle = '#aaddff';
+      ctx.shadowColor = '#1d9ab0'; ctx.shadowBlur = 22;
+      ctx.fillText('PAUSED', W/2, H/2 - 10);
+      ctx.shadowBlur = 0; ctx.font = '13px system-ui'; ctx.fillStyle = '#456878';
+      ctx.fillText('ESC or ▶ Resume to continue', W/2, H/2 + 18);
+      ctx.restore();
+    }
+  }
+
+  function tick(t){
+    if (!tLast) tLast = t;
+    tLast = t;
+
+    if (menuActive) {
+      if (keys.has(' ') || keys.has('Enter')) {
+        keys.delete(' '); keys.delete('Enter');
+        menuActive = false; paused = false;
+        stopPreview(); stopSpritePreview(); stopQixPreview();
+        $hud.classList.remove('hidden');
+        $menuOpts.classList.add('hidden');
+        $advPanel.classList.add('hidden');
+        $resumeRow.style.display = 'none';
+        init();
+      }
+    } else if (paused) {
+      // game frozen — just render below
+    } else if (!gameOver) {
+      if (exploding) {
+        if (explosion && (performance.now() - explosion.t0) >= EXPLOSION_DURATION) {
+          exploding = false; explosion = null;
+          if (!gameOver) doRespawn();
+        }
+      } else if (levelComplete) {
+        const elSec = (performance.now() - levelCompleteTime) / 1000;
+        if (elSec > 1.0 && (keys.has(' ') || keys.has('Enter'))) {
+          keys.delete(' '); keys.delete('Enter'); nextLevel();
+        }
+      } else {
+        updatePlayer();
+        updateEnemies();
+        updateSparxes();
+        if (bonusEnabled) updateBonus();
+      }
+    }
+    render();
+    updateDebug();
+    requestAnimationFrame(tick);
+  }
+
+  // ── Advanced settings persistence ────────────────────────────────────────
+  function saveAdvancedSettings() {
+    try {
+      localStorage.setItem('qixit_adv', JSON.stringify({
+        bgmPool,
+        sfxSrcs: sfxAll.map(a => a._src),
+        enabledSpriteIdxs,
+        enabledSparxIdxs,
+        menuMusicSrc,
+        playerSkinIdx,
+        qixSkinIdx,
+        sparxSkinIdx,
+        bonusEnabled,
+        bonusSpriteIdx,
+        bonusCountBase,
+        qixConfig,
+        bgSpaceQueries,
+        bgArtQueries,
+        bgAnimeCategories,
+        bgAnimeCustomTags,
+        bgCustomSources,
+        bgCustomInclude,
+        bgCustomExclude,
+      }));
+    } catch(_) {}
+  }
+
+  function loadAdvancedSettings() {
+    try {
+      const d = JSON.parse(localStorage.getItem('qixit_adv'));
+      if (!d) return;
+      // Migrate old flat paths (assets/music/X) → new subfolders
+      const sfxNames = ['Effects ', 'Level Up', 'GameOver', 'Victory', 'Hit damage'];
+      const migrateAudio = src => {
+        if (!src || src.includes('/bgm/') || src.includes('/sfx/')) return src;
+        const file = src.replace('assets/music/', '');
+        const isSfx = sfxNames.some(n => file.startsWith(n));
+        return `assets/music/${isSfx ? 'sfx' : 'bgm'}/${file}`;
+      };
+      if (Array.isArray(d.bgmPool) && d.bgmPool.length > 0) bgmPool = d.bgmPool.map(migrateAudio);
+      if (Array.isArray(d.sfxSrcs)) {
+        d.sfxSrcs.forEach((src, i) => {
+          const s = migrateAudio(src);
+          if (s && sfxAll[i]) { sfxAll[i].src = s; sfxAll[i]._src = s; sfxAll[i].load(); sfxAll[i].volume = sfxBaseVols[i] * sfxVol; }
+        });
+      }
+      if (Array.isArray(d.enabledSpriteIdxs) && d.enabledSpriteIdxs.length > 0) enabledSpriteIdxs = d.enabledSpriteIdxs;
+      if (Array.isArray(d.enabledSparxIdxs)) enabledSparxIdxs = d.enabledSparxIdxs;
+      if (d.menuMusicSrc) menuMusicSrc = migrateAudio(d.menuMusicSrc);
+      if (typeof d.playerSkinIdx === 'number') playerSkinIdx = d.playerSkinIdx;
+      if (typeof d.qixSkinIdx    === 'number') qixSkinIdx    = d.qixSkinIdx;
+      if (typeof d.sparxSkinIdx  === 'number') sparxSkinIdx  = d.sparxSkinIdx;
+      if (typeof d.bonusEnabled   === 'boolean') bonusEnabled   = d.bonusEnabled;
+      if (typeof d.bonusSpriteIdx === 'number')  bonusSpriteIdx = d.bonusSpriteIdx;
+      if (typeof d.bonusCountBase === 'number')  bonusCountBase = d.bonusCountBase;
+      if (Array.isArray(d.bgSpaceQueries)    && d.bgSpaceQueries.length > 0)    { bgSpaceQueries.length = 0;    bgSpaceQueries.push(...d.bgSpaceQueries); }
+      if (Array.isArray(d.bgArtQueries)      && d.bgArtQueries.length > 0)      { bgArtQueries.length = 0;      bgArtQueries.push(...d.bgArtQueries); }
+      if (Array.isArray(d.bgAnimeCategories) && d.bgAnimeCategories.length > 0) { bgAnimeCategories.length = 0; bgAnimeCategories.push(...d.bgAnimeCategories); }
+      if (Array.isArray(d.bgAnimeCustomTags)) { bgAnimeCustomTags.length = 0; bgAnimeCustomTags.push(...d.bgAnimeCustomTags); }
+      if (Array.isArray(d.bgCustomSources)   && d.bgCustomSources.length > 0)  { bgCustomSources.length = 0; bgCustomSources.push(...d.bgCustomSources); }
+      if (typeof d.bgCustomInclude === 'string') bgCustomInclude = d.bgCustomInclude;
+      if (typeof d.bgCustomExclude === 'string') bgCustomExclude = d.bgCustomExclude;
+      if (d.qixConfig && typeof d.qixConfig === 'object') {
+        if (typeof d.qixConfig.segments  === 'number') qixConfig.segments  = d.qixConfig.segments;
+        if (typeof d.qixConfig.armLen    === 'number') qixConfig.armLen    = d.qixConfig.armLen;
+        if (typeof d.qixConfig.rotSpeed  === 'number') qixConfig.rotSpeed  = d.qixConfig.rotSpeed;
+        if (typeof d.qixConfig.lineWidth === 'number') qixConfig.lineWidth = d.qixConfig.lineWidth;
+        if (typeof d.qixConfig.glowBlur  === 'number') qixConfig.glowBlur  = d.qixConfig.glowBlur;
+        if (typeof d.qixConfig.colorMode === 'string') qixConfig.colorMode = d.qixConfig.colorMode;
+        if (typeof d.qixConfig.hue       === 'number') qixConfig.hue       = d.qixConfig.hue;
+      }
+    } catch(_) {}
+  }
+
+  const ALL_SFX_FILES = _manifest.sfx.map(e => e.src);  // populated from embedded manifest
+  const SFX_SLOT_LABELS = [
+    'Claim Territory',
+    'Enemy Kill',
+    'Player Death',
+    'Draw Start',
+    'Level Up',
+    'Game Over',
+    'Victory',
+  ];
+
+  function buildAdvPanel() {
+    // BGM pool checkboxes
+    const $bgmList = document.getElementById('bgm-pool-list');
+    $bgmList.innerHTML = '';
+    for (const entry of ALL_BGM) {
+      const wrap = document.createElement('div');
+      wrap.className = 'adv-bgm-item';
+      const lbl = document.createElement('label');
+      lbl.className = 'adv-check' + (bgmPool.includes(entry.src) ? ' active' : '');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = bgmPool.includes(entry.src);
+      cb.addEventListener('change', () => {
+        if (cb.checked) { if (!bgmPool.includes(entry.src)) bgmPool.push(entry.src); }
+        else { bgmPool = bgmPool.filter(s => s !== entry.src); if (bgmPool.length === 0) bgmPool.push(entry.src); }
+        lbl.className = 'adv-check' + (bgmPool.includes(entry.src) ? ' active' : '');
+        saveAdvancedSettings();
+        // If the game has a track playing that's no longer in the pool, switch immediately
+        if (!menuActive && currentBGMSrc && !bgmPool.includes(currentBGMSrc)) {
+          currentBGMSrc = ''; // force playBGM to accept the new src
+          playBGM(bgmPool[Math.floor(Math.random() * bgmPool.length)]);
+        }
+      });
+      lbl.appendChild(cb);
+      lbl.appendChild(document.createTextNode(entry.label));
+      const playBtn = document.createElement('button');
+      playBtn.className = 'btn adv-preview-btn';
+      playBtn.textContent = '▶';
+      playBtn.title = 'Preview: ' + entry.label;
+      playBtn.addEventListener('click', (e) => { e.preventDefault(); previewBGM(entry.src, playBtn); });
+      wrap.appendChild(lbl);
+      wrap.appendChild(playBtn);
+      $bgmList.appendChild(wrap);
+    }
+
+    // Menu music selector
+    const $menuMusicRow = document.getElementById('menu-music-row');
+    $menuMusicRow.innerHTML = '';
+    const mmLabel = document.createElement('span');
+    mmLabel.className = 'sfx-label';
+    mmLabel.textContent = 'Menu Music';
+    const mmSel = document.createElement('select');
+    for (const entry of ALL_BGM) {
+      const opt = document.createElement('option');
+      opt.value = entry.src;
+      opt.textContent = entry.label;
+      if (entry.src === menuMusicSrc) opt.selected = true;
+      mmSel.appendChild(opt);
+    }
+    mmSel.addEventListener('change', () => {
+      menuMusicSrc = mmSel.value;
+      saveAdvancedSettings();
+      if (menuActive) { currentBGMSrc = ''; playBGM(menuMusicSrc); } // apply immediately on menu
+    });
+    const mmPreviewBtn = document.createElement('button');
+    mmPreviewBtn.className = 'btn adv-preview-btn';
+    mmPreviewBtn.textContent = '▶';
+    mmPreviewBtn.title = 'Preview menu music';
+    mmPreviewBtn.addEventListener('click', (e) => { e.preventDefault(); previewBGM(mmSel.value, mmPreviewBtn); });
+    $menuMusicRow.appendChild(mmLabel);
+    $menuMusicRow.appendChild(mmSel);
+    $menuMusicRow.appendChild(mmPreviewBtn);
+
+    // SFX assign rows
+    const $sfxList = document.getElementById('sfx-assign-list');
+    $sfxList.innerHTML = '';
+    SFX_SLOT_LABELS.forEach((slotLabel, i) => {
+      const row = document.createElement('div');
+      row.className = 'sfx-row';
+      const lbl = document.createElement('span');
+      lbl.className = 'sfx-label';
+      lbl.textContent = slotLabel;
+      const sel = document.createElement('select');
+      for (const sfEntry of _manifest.sfx) {
+        const opt = document.createElement('option');
+        opt.value = sfEntry.src;
+        opt.textContent = sfEntry.label;
+        if (sfxAll[i]._src === sfEntry.src) opt.selected = true;
+        sel.appendChild(opt);
+      }
+      sel.addEventListener('change', () => {
+        const newSrc = sel.value;
+        sfxAll[i].src = newSrc;
+        sfxAll[i]._src = newSrc;
+        sfxAll[i].load();
+        sfxAll[i].volume = sfxBaseVols[i] * sfxVol;
+        saveAdvancedSettings();
+        // Preview via dedicated previewAudio so we don't race with load()
+        previewAudio.src = newSrc;
+        previewAudio.volume = sfxVol || 0.5;
+        previewAudio.play().catch(() => {});
+      });
+      const sfxPreviewBtn = document.createElement('button');
+      sfxPreviewBtn.className = 'btn adv-preview-btn';
+      sfxPreviewBtn.textContent = '▶';
+      sfxPreviewBtn.title = 'Preview this effect';
+      sfxPreviewBtn.addEventListener('click', () => {
+        previewAudio.src = sfxAll[i]._src;
+        previewAudio.volume = sfxVol || 0.5;
+        previewAudio.currentTime = 0;
+        previewAudio.play().catch(() => {});
+      });
+      row.appendChild(lbl);
+      row.appendChild(sel);
+      row.appendChild(sfxPreviewBtn);
+      $sfxList.appendChild(row);
+    });
+
+    // Background image search customisation
+    const $bgSearch = document.getElementById('bg-search-section');
+    $bgSearch.innerHTML = '';
+
+    // Helper: builds a pill-tag editor for a mutable keyword array
+    function makeTagEditor(label, queries, defaults) {
+      const wrap = document.createElement('div');
+      const lbl = document.createElement('div');
+      lbl.style.cssText = 'color:#4a7a8a;font-size:10px;letter-spacing:1.1px;text-transform:uppercase;margin-bottom:5px;';
+      lbl.textContent = label;
+      const tagsDiv = document.createElement('div');
+      tagsDiv.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;align-items:center;';
+      function renderTags() {
+        tagsDiv.innerHTML = '';
+        queries.forEach((q, i) => {
+          const pill = document.createElement('span');
+          pill.style.cssText = 'display:inline-flex;align-items:center;gap:3px;background:rgba(29,154,176,0.13);border:1px solid rgba(29,154,176,0.28);border-radius:12px;padding:2px 9px 2px 8px;font-size:10px;color:#7ec8e3;';
+          pill.appendChild(document.createTextNode(q));
+          const x = document.createElement('span');
+          x.textContent = '×'; x.title = 'Remove';
+          x.style.cssText = 'cursor:pointer;opacity:0.6;font-size:12px;line-height:1;margin-left:1px;';
+          x.onclick = () => {
+            queries.splice(i, 1);
+            if (queries.length === 0) queries.push(...defaults);
+            renderTags(); saveAdvancedSettings();
+          };
+          pill.appendChild(x);
+          tagsDiv.appendChild(pill);
+        });
+        // Add-keyword input
+        const inp = document.createElement('input');
+        inp.type = 'text'; inp.placeholder = 'Add…';
+        inp.style.cssText = 'background:#0e1922;border:1px solid #1e2e3a;color:#c8e0f0;padding:2px 8px;border-radius:10px;font-size:10px;width:90px;outline:none;';
+        inp.onkeydown = e => {
+          if (e.key === 'Enter') { e.preventDefault(); const v = inp.value.trim(); if (v && !queries.includes(v)) { queries.push(v); renderTags(); saveAdvancedSettings(); } inp.value = ''; }
+        };
+        tagsDiv.appendChild(inp);
+        // Reset to defaults
+        const rst = document.createElement('button');
+        rst.textContent = '↩'; rst.title = 'Reset to defaults'; rst.className = 'btn';
+        rst.style.cssText = 'font-size:10px;padding:1px 6px;opacity:0.6;';
+        rst.onclick = () => { queries.length = 0; queries.push(...defaults); renderTags(); saveAdvancedSettings(); };
+        tagsDiv.appendChild(rst);
+      }
+      renderTags();
+      wrap.appendChild(lbl); wrap.appendChild(tagsDiv);
+      return wrap;
+    }
+
+    // Space keywords
+    const spaceWrap = document.createElement('div');
+    spaceWrap.appendChild(makeTagEditor('Space — NASA search terms', bgSpaceQueries, BG_SPACE_DEFAULTS));
+    $bgSearch.appendChild(spaceWrap);
+
+    // Art queries
+    const artWrap = document.createElement('div');
+    artWrap.appendChild(makeTagEditor('Art — Met Museum queries', bgArtQueries, BG_ART_DEFAULTS));
+    $bgSearch.appendChild(artWrap);
+
+    // Anime categories
+    const animeWrap = document.createElement('div');
+    const animeLbl = document.createElement('div');
+    animeLbl.style.cssText = 'color:#4a7a8a;font-size:10px;letter-spacing:1.1px;text-transform:uppercase;margin-bottom:5px;';
+    animeLbl.textContent = 'Anime — nekos.best categories';
+    const animeTagsDiv = document.createElement('div');
+    animeTagsDiv.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;';
+    ['neko','kitsune','waifu','husbando','maid'].forEach(cat => {
+      const lbl = document.createElement('label');
+      lbl.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:rgba(29,154,176,0.1);border:1px solid rgba(29,154,176,0.22);border-radius:10px;padding:2px 9px;font-size:10px;color:#7ec8e3;cursor:pointer;';
+      const cb = document.createElement('input'); cb.type = 'checkbox';
+      const active = bgAnimeCategories.includes(cat);
+      cb.checked = active;
+      lbl.style.opacity = active ? '1' : '0.45';
+      cb.onchange = () => {
+        if (cb.checked) { if (!bgAnimeCategories.includes(cat)) bgAnimeCategories.push(cat); lbl.style.opacity = '1'; }
+        else { bgAnimeCategories = bgAnimeCategories.filter(c => c !== cat); if (bgAnimeCategories.length === 0) bgAnimeCategories.push(...BG_ANIME_DEFAULTS); lbl.style.opacity = '0.45'; }
+        saveAdvancedSettings();
+      };
+      lbl.appendChild(cb); lbl.appendChild(document.createTextNode(cat));
+      animeTagsDiv.appendChild(lbl);
+    });
+    animeWrap.appendChild(animeLbl); animeWrap.appendChild(animeTagsDiv);
+    $bgSearch.appendChild(animeWrap);
+
+    // Anime — Safebooru custom tags (extra keywords, any SFW tag accepted)
+    const animeCustomWrap = document.createElement('div');
+    animeCustomWrap.appendChild(makeTagEditor('Anime — custom tags (Safebooru SFW)', bgAnimeCustomTags, []));
+    const animeCustomNote = document.createElement('div');
+    animeCustomNote.style.cssText = 'font-size:10px;color:#2e4a58;margin-top:3px;';
+    animeCustomNote.textContent = 'Add any Safebooru tag (e.g. scenery, night_sky, cherry_blossoms). Takes priority over nekos.best when set.';
+    animeCustomWrap.appendChild(animeCustomNote);
+    $bgSearch.appendChild(animeCustomWrap);
+
+    // Custom theme — sources + keywords
+    const customWrap = document.createElement('div');
+    const customLbl = document.createElement('div');
+    customLbl.style.cssText = 'color:#4a7a8a;font-size:10px;letter-spacing:1.1px;text-transform:uppercase;margin-bottom:5px;';
+    customLbl.textContent = 'Custom theme — sources';
+    const customNote = document.createElement('div');
+    customNote.style.cssText = 'font-size:10px;color:#2e4a58;margin-bottom:7px;';
+    customNote.textContent = 'Select "Custom" on the main menu. Each fetch picks a random enabled source.';
+    const sourcesDiv = document.createElement('div');
+    sourcesDiv.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;';
+    BG_CUSTOM_SOURCES_ALL.forEach(({ id, label }) => {
+      const lbl = document.createElement('label');
+      const isOn = bgCustomSources.includes(id);
+      lbl.style.cssText = `display:inline-flex;align-items:center;gap:4px;background:rgba(29,154,176,0.1);border:1px solid rgba(29,154,176,0.22);border-radius:10px;padding:2px 9px;font-size:10px;color:#7ec8e3;cursor:pointer;opacity:${isOn?'1':'0.45'};`;
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = isOn;
+      cb.onchange = () => {
+        if (cb.checked) { if (!bgCustomSources.includes(id)) bgCustomSources.push(id); lbl.style.opacity = '1'; }
+        else {
+          bgCustomSources = bgCustomSources.filter(s => s !== id);
+          if (bgCustomSources.length === 0) { bgCustomSources.push(...BG_CUSTOM_SOURCES_DEFAULTS); buildAdvPanel(); return; }
+          lbl.style.opacity = '0.45';
+        }
+        saveAdvancedSettings();
+      };
+      lbl.appendChild(cb); lbl.appendChild(document.createTextNode(' ' + label));
+      sourcesDiv.appendChild(lbl);
+    });
+    function makeTextRow(labelText, value, placeholder, onChange) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:7px;margin-bottom:5px;';
+      const lbl = document.createElement('span'); lbl.style.cssText = 'width:62px;flex-shrink:0;'; lbl.textContent = labelText;
+      const inp = document.createElement('input'); inp.type = 'text'; inp.value = value; inp.placeholder = placeholder;
+      inp.style.cssText = 'flex:1;background:#0e1922;border:1px solid #1e2e3a;color:#c8e0f0;padding:3px 7px;border-radius:5px;font-size:11px;outline:none;';
+      inp.oninput = () => { onChange(inp.value); saveAdvancedSettings(); };
+      row.appendChild(lbl); row.appendChild(inp);
+      return row;
+    }
+    customWrap.appendChild(customLbl);
+    customWrap.appendChild(customNote);
+    customWrap.appendChild(sourcesDiv);
+    customWrap.appendChild(makeTextRow('Include:', bgCustomInclude, 'e.g. sunset mountain lake', v => { bgCustomInclude = v; }));
+    customWrap.appendChild(makeTextRow('Exclude:', bgCustomExclude, 'e.g. person, portrait, text', v => { bgCustomExclude = v; }));
+    $bgSearch.appendChild(customWrap);
+
+    // ── Skin selector helper (animated preview canvas + dropdown) ──────────────
+    spritePreviewCanvases = [];
+    function buildSkinSelector(defs, imgs, currentIdx, onchange, container, fallbackDraw) {
+      container.innerHTML = '';
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;';
+      const PSIZ = 52;
+      const cnv = document.createElement('canvas');
+      cnv.width = cnv.height = PSIZ;
+      // explicit width/height overrides the global "canvas { width:100% }" CSS rule
+      cnv.style.cssText = `width:${PSIZ}px;height:${PSIZ}px;border-radius:7px;border:1px solid rgba(29,154,176,0.2);background:#060e16;image-rendering:pixelated;flex-shrink:0;`;
+      const pEntry = { canvas: cnv, ctx: cnv.getContext('2d'), img: currentIdx >= 0 ? imgs[currentIdx] : null, frame: 0, size: PSIZ, onDraw: fallbackDraw || null };
+      spritePreviewCanvases.push(pEntry);
+      const sel = document.createElement('select');
+      sel.style.cssText = 'background:#1f2a33;border:1px solid #2b3945;color:#e7e7e7;padding:3px 6px;border-radius:6px;cursor:pointer;font-size:11px;';
+      const optNone = document.createElement('option');
+      optNone.value = '-1'; optNone.textContent = 'Procedural (default)';
+      if (currentIdx < 0) optNone.selected = true;
+      sel.appendChild(optNone);
+      defs.forEach((def, idx) => {
+        const opt = document.createElement('option'); opt.value = String(idx); opt.textContent = def.label;
+        if (idx === currentIdx) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      if (defs.length === 0) {
+        const note = document.createElement('span'); note.style.cssText = 'font-size:11px;color:#6b7280;';
+        note.textContent = 'No sprites — add .png files to the folder then Refresh Assets.';
+        wrap.appendChild(cnv); wrap.appendChild(note); container.appendChild(wrap); return;
+      }
+      sel.addEventListener('change', () => {
+        const idx = parseInt(sel.value);
+        pEntry.img = idx >= 0 ? imgs[idx] : null; pEntry.frame = 0;
+        onchange(idx); saveAdvancedSettings();
+      });
+      wrap.appendChild(cnv); wrap.appendChild(sel); container.appendChild(wrap);
+    }
+
+    // Player skin selector — procedural preview: glowing rhomboid
+    buildSkinSelector(ALL_PLAYER_DEFS, playerImgs, playerSkinIdx,
+      idx => { playerSkinIdx = idx; playerFrame = 0; playerFrameTick = 0; },
+      document.getElementById('player-skin-list'),
+      (pCtx, sz, t) => {
+        const cx = sz / 2, cy = sz / 2;
+        const pulse = 1 + 0.18 * Math.sin(t * 5);
+        const r = sz * 0.3 * pulse;
+        pCtx.save();
+        pCtx.strokeStyle = '#7ec8e3'; pCtx.lineWidth = 1.5;
+        pCtx.shadowColor = '#7ec8e3'; pCtx.shadowBlur = 7;
+        pCtx.beginPath();
+        pCtx.moveTo(cx, cy - r); pCtx.lineTo(cx + r * 0.65, cy);
+        pCtx.lineTo(cx, cy + r); pCtx.lineTo(cx - r * 0.65, cy);
+        pCtx.closePath(); pCtx.stroke();
+        pCtx.restore();
+      });
+
+    // Bonus sprite selector — procedural preview: rotating star
+    buildSkinSelector(ALL_BONUS_DEFS, bonusImgs, bonusSpriteIdx,
+      idx => { bonusSpriteIdx = idx; },
+      document.getElementById('bonus-sprite-list'),
+      (pCtx, sz, t) => {
+        const cx = sz / 2, cy = sz / 2;
+        const outer = sz * 0.34, inner = sz * 0.14;
+        const hue = (t * 90) % 360;
+        pCtx.save();
+        pCtx.translate(cx, cy); pCtx.rotate(t * 1.2);
+        pCtx.beginPath();
+        for (let i = 0; i < 10; i++) {
+          const a = (i * Math.PI) / 5 - Math.PI / 2;
+          const r = i % 2 === 0 ? outer : inner;
+          i === 0 ? pCtx.moveTo(Math.cos(a)*r, Math.sin(a)*r) : pCtx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+        }
+        pCtx.closePath();
+        pCtx.strokeStyle = `hsl(${hue},100%,72%)`; pCtx.lineWidth = 1.2;
+        pCtx.shadowColor = `hsl(${hue},100%,70%)`; pCtx.shadowBlur = 8;
+        pCtx.stroke(); pCtx.restore();
+      });
+
+    // Qix Appearance controls
+    const $qixCtrl = document.getElementById('qix-gen-controls');
+    $qixCtrl.innerHTML = '';
+
+    function makeQixSlider(label, key, min, max, step, displayFn) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:6px;';
+      const lbl = document.createElement('span');
+      lbl.style.cssText = 'width:76px;flex-shrink:0;';
+      lbl.textContent = label;
+      const sl = document.createElement('input');
+      sl.type = 'range'; sl.min = min; sl.max = max; sl.step = step;
+      sl.value = qixConfig[key];
+      sl.style.cssText = 'flex:1;accent-color:#1d9ab0;cursor:pointer;min-width:80px;';
+      const valSpan = document.createElement('span');
+      valSpan.style.cssText = 'width:32px;text-align:right;flex-shrink:0;color:#c8e0f0;font-size:10px;';
+      valSpan.textContent = displayFn ? displayFn(qixConfig[key]) : qixConfig[key];
+      sl.oninput = () => {
+        qixConfig[key] = parseFloat(sl.value);
+        valSpan.textContent = displayFn ? displayFn(qixConfig[key]) : qixConfig[key];
+        saveAdvancedSettings();
+      };
+      row.appendChild(lbl); row.appendChild(sl); row.appendChild(valSpan);
+      $qixCtrl.appendChild(row);
+      return sl;
+    }
+
+    // Color mode select
+    const cmRow = document.createElement('div');
+    cmRow.style.cssText = 'display:flex;align-items:center;gap:6px;';
+    const cmLbl = document.createElement('span'); cmLbl.style.cssText = 'width:76px;flex-shrink:0;'; cmLbl.textContent = 'Color mode';
+    const cmSel = document.createElement('select');
+    cmSel.style.cssText = 'flex:1;background:#1f2a33;border:1px solid #2b3945;color:#e7e7e7;padding:2px 4px;border-radius:5px;font-size:11px;';
+    [['rainbow','Rainbow'],['mono','Mono'],['duo','Duo'],['pastel','Pastel'],['neon','Neon']].forEach(([v,l]) => {
+      const opt = document.createElement('option'); opt.value = v; opt.textContent = l;
+      if (v === qixConfig.colorMode) opt.selected = true;
+      cmSel.appendChild(opt);
+    });
+    cmRow.appendChild(cmLbl); cmRow.appendChild(cmSel);
+    $qixCtrl.appendChild(cmRow);
+
+    makeQixSlider('Segments',  'segments',  2,   20, 1);
+    makeQixSlider('Arm length','armLen',    0.5, 10, 0.1, v => v.toFixed(1));
+    makeQixSlider('Speed',     'rotSpeed',  0.1,  4, 0.1, v => v.toFixed(1));
+    makeQixSlider('Line width','lineWidth', 0.5,  6, 0.1, v => v.toFixed(1));
+    makeQixSlider('Glow',      'glowBlur',  0,   24, 1);
+
+    // Hue slider (relevant only for mono/duo)
+    const hueRow = document.createElement('div');
+    hueRow.style.cssText = 'display:flex;align-items:center;gap:6px;';
+    const hueLbl = document.createElement('span'); hueLbl.style.cssText = 'width:76px;flex-shrink:0;'; hueLbl.textContent = 'Hue';
+    const hueSl = document.createElement('input');
+    hueSl.type = 'range'; hueSl.min = 0; hueSl.max = 359; hueSl.step = 1; hueSl.value = qixConfig.hue;
+    hueSl.style.cssText = `flex:1;cursor:pointer;min-width:80px;accent-color:hsl(${qixConfig.hue},80%,55%);`;
+    const hueVal = document.createElement('span');
+    hueVal.style.cssText = 'width:32px;text-align:right;flex-shrink:0;color:#c8e0f0;font-size:10px;';
+    hueVal.textContent = qixConfig.hue;
+    hueSl.oninput = () => {
+      qixConfig.hue = parseInt(hueSl.value);
+      hueVal.textContent = qixConfig.hue;
+      hueSl.style.accentColor = `hsl(${qixConfig.hue},80%,55%)`;
+      saveAdvancedSettings();
+    };
+    hueRow.appendChild(hueLbl); hueRow.appendChild(hueSl); hueRow.appendChild(hueVal);
+    $qixCtrl.appendChild(hueRow);
+
+    function updateHueRow() {
+      hueRow.style.display = (qixConfig.colorMode === 'mono' || qixConfig.colorMode === 'duo') ? 'flex' : 'none';
+    }
+    updateHueRow();
+    cmSel.onchange = () => { qixConfig.colorMode = cmSel.value; updateHueRow(); saveAdvancedSettings(); };
+
+    // Randomize + Reset
+    const qixBtnRow = document.createElement('div');
+    qixBtnRow.style.cssText = 'display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;';
+    const randBtn = document.createElement('button'); randBtn.className = 'btn';
+    randBtn.style.cssText = 'font-size:10px;padding:4px 8px;';
+    randBtn.textContent = 'Randomize';
+    randBtn.onclick = () => {
+      const modes = ['rainbow','mono','duo','pastel','neon'];
+      qixConfig = {
+        segments:  3 + Math.floor(Math.random() * 14),
+        armLen:    parseFloat((1 + Math.random() * 7).toFixed(1)),
+        rotSpeed:  parseFloat((0.2 + Math.random() * 2.8).toFixed(1)),
+        lineWidth: parseFloat((0.5 + Math.random() * 4).toFixed(1)),
+        glowBlur:  Math.floor(Math.random() * 20),
+        colorMode: modes[Math.floor(Math.random() * modes.length)],
+        hue:       Math.floor(Math.random() * 360),
+      };
+      saveAdvancedSettings(); buildAdvPanel();
+    };
+    const resetBtn = document.createElement('button'); resetBtn.className = 'btn';
+    resetBtn.style.cssText = 'font-size:10px;padding:4px 8px;';
+    resetBtn.textContent = 'Reset';
+    resetBtn.onclick = () => {
+      qixConfig = { segments: 8, armLen: 4.5, rotSpeed: 1.0, lineWidth: 2.5, glowBlur: 6, colorMode: 'rainbow', hue: 180 };
+      saveAdvancedSettings(); buildAdvPanel();
+    };
+    qixBtnRow.appendChild(randBtn); qixBtnRow.appendChild(resetBtn);
+    $qixCtrl.appendChild(qixBtnRow);
+
+    // Bonus objects
+    const $bonusEnable = document.getElementById('bonus-enable-cb');
+    const $bonusCount  = document.getElementById('bonus-count-input');
+    $bonusEnable.checked = bonusEnabled;
+    $bonusCount.value   = bonusCountBase;
+    document.getElementById('bonus-enable-label').classList.toggle('active', bonusEnabled);
+    $bonusEnable.onchange = () => {
+      bonusEnabled = $bonusEnable.checked;
+      document.getElementById('bonus-enable-label').classList.toggle('active', bonusEnabled);
+      if (!menuActive) { bonusEntities = []; if (bonusEnabled) spawnBonusForLevel(); }
+      saveAdvancedSettings();
+    };
+    $bonusCount.onchange = () => {
+      bonusCountBase = Math.max(1, Math.min(8, parseInt($bonusCount.value) || 2));
+      $bonusCount.value = bonusCountBase;
+      saveAdvancedSettings();
+    };
+    // Theme export
+    document.getElementById('theme-export-btn').onclick = () => {
+      const theme = {
+        name: 'My Theme', version: 1,
+        enabledSpriteIdxs, enabledSparxIdxs,
+        playerSkinIdx, qixSkinIdx, sparxSkinIdx,
+        bonus: { enabled: bonusEnabled, spriteIdx: bonusSpriteIdx, countBase: bonusCountBase },
+        bgmPool, menuMusicSrc,
+        sfxSrcs: sfxAll.map(a => a._src),
+      };
+      const blob = new Blob([JSON.stringify(theme, null, 2)], { type: 'application/json' });
+      const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'qixit-theme.json' });
+      a.click(); URL.revokeObjectURL(a.href);
+      document.getElementById('theme-status').textContent = 'Theme exported.';
+    };
+
+    // Theme import
+    const $themeFile = document.getElementById('theme-import-file');
+    document.getElementById('theme-import-btn').onclick = () => $themeFile.click();
+    $themeFile.onchange = () => {
+      const file = $themeFile.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          applyTheme(JSON.parse(e.target.result));
+          document.getElementById('theme-status').textContent = 'Theme loaded.';
+        } catch(_) {
+          document.getElementById('theme-status').textContent = 'Invalid theme file.';
+        }
+        $themeFile.value = '';
+      };
+      reader.readAsText(file);
+    };
+
+    // Refresh assets button — re-fetches /api/manifest from the dev server
+    document.getElementById('refresh-assets-btn').onclick = async () => {
+      const $st = document.getElementById('refresh-assets-status');
+      $st.style.color = '#5a8890';
+      $st.textContent = 'Scanning…';
+      try {
+        const r = await fetch('/api/manifest');
+        if (!r.ok) throw new Error('server error');
+        const live = await r.json();
+        // Rebuild ALL_* def arrays
+        ALL_BGM.length = 0;         live.bgm.forEach(e => ALL_BGM.push(e));
+        ALL_SFX_FILES.length = 0;   live.sfx.forEach(e => ALL_SFX_FILES.push(e.src));
+        ALL_SPRITE_DEFS.length = 0; live.sprites.forEach(e => ALL_SPRITE_DEFS.push(e));
+        ALL_PLAYER_DEFS.length = 0; (live.player || []).forEach(e => ALL_PLAYER_DEFS.push(e));
+        ALL_SPARX_DEFS.length  = 0; (live.sparx  || []).forEach(e => ALL_SPARX_DEFS.push(e));
+        ALL_BONUS_DEFS.length  = 0; (live.bonus  || []).forEach(e => ALL_BONUS_DEFS.push(e));
+        // Reload images (only add new entries, don't reset existing)
+        live.sprites.forEach((def, i) => { if (!spriteImgs[i]) spriteImgs[i] = loadSpriteImg(def); });
+        (live.player||[]).forEach((def, i) => { if (!playerImgs[i]) playerImgs[i] = loadSpriteImg(def); });
+        (live.sparx||[]).forEach((def, i)  => { if (!sparxImgs[i])  sparxImgs[i]  = loadSpriteImg(def); });
+        (live.bonus||[]).forEach((def, i)  => { if (!bonusImgs[i])  bonusImgs[i]  = loadSpriteImg(def); });
+        buildAdvPanel();
+        const total = live.sprites.length + (live.player||[]).length + (live.sparx||[]).length + (live.bonus||[]).length;
+        $st.style.color = '#6ee7b7';
+        $st.textContent = `${total} sprite${total !== 1 ? 's' : ''} loaded.`;
+      } catch(_) {
+        $st.style.color = '#e76f51';
+        $st.textContent = 'Not available (run node server.js).';
+      }
+    };
+
+    // Cache buttons
+    document.getElementById('cache-clear-btn').onclick = () => {
+      clearAllBgCache();
+      document.getElementById('cache-adv-status').textContent = 'Cache cleared.';
+    };
+    document.getElementById('cache-prefetch-btn').onclick = async () => {
+      const $cacheStatus = document.getElementById('cache-adv-status');
+      $cacheStatus.textContent = 'Prefetching…';
+      const themes = ['landscape','space','anime','city','nature','art'];
+      for (const t of themes) {
+        $cacheStatus.textContent = `Fetching ${t}…`;
+        await fetchBgImages(t);
+      }
+      $cacheStatus.textContent = 'All themes prefetched.';
+    };
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  function applyTheme(t) {
+    if (!t || t.version !== 1) throw new Error('bad theme');
+    if (Array.isArray(t.enabledSpriteIdxs)) enabledSpriteIdxs = t.enabledSpriteIdxs;
+    if (Array.isArray(t.enabledSparxIdxs))  enabledSparxIdxs  = t.enabledSparxIdxs;
+    if (typeof t.playerSkinIdx === 'number') playerSkinIdx = t.playerSkinIdx;
+    if (typeof t.qixSkinIdx    === 'number') qixSkinIdx    = t.qixSkinIdx;
+    if (typeof t.sparxSkinIdx  === 'number') sparxSkinIdx  = t.sparxSkinIdx;
+    if (t.bonus) {
+      if (typeof t.bonus.enabled    === 'boolean') bonusEnabled    = t.bonus.enabled;
+      if (typeof t.bonus.spriteIdx  === 'number')  bonusSpriteIdx  = t.bonus.spriteIdx;
+      if (typeof t.bonus.countBase  === 'number')  bonusCountBase  = t.bonus.countBase;
+    }
+    if (Array.isArray(t.bgmPool) && t.bgmPool.length > 0) bgmPool = t.bgmPool;
+    if (t.menuMusicSrc) menuMusicSrc = t.menuMusicSrc;
+    if (Array.isArray(t.sfxSrcs)) {
+      t.sfxSrcs.forEach((src, i) => {
+        if (src && sfxAll[i]) { sfxAll[i].src = src; sfxAll[i]._src = src; sfxAll[i].load(); sfxAll[i].volume = sfxBaseVols[i] * sfxVol; }
+      });
+    }
+    saveAdvancedSettings();
+    buildAdvPanel();
+  }
+
+  // Start on menu, not in-game
+  loadAdvancedSettings();
+  buildAdvPanel();
+  menuActive = true;
+  $hud.classList.add('hidden');
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

@@ -106,7 +106,7 @@ No violence, no in-app purchases (yet), no user-generated content moderation con
 ## Contact Details
 ```
 Developer: Roberto Zanardo
-Email: (your email here)
+Email: rohzen1@gmail.com
 Website: https://github.com/Rohzen/qixit
 ```
 

@@ -1,0 +1,184 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   QIXIT — Mobile / Android Enhancement Layer
+   Loaded only in the Capacitor build (injected by build.js)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Base overrides ──────────────────────────────────────────────────────── */
+
+/* Prevent zooming and safe-area handling */
+html {
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+
+body {
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Optimize outer-wrap for mobile viewports */
+#outer-wrap {
+  gap: 4px;
+  max-width: 100vw;
+  padding: 0 env(safe-area-inset-right, 0) 0 env(safe-area-inset-left, 0);
+  box-sizing: border-box;
+}
+
+/* Compact HUD for mobile */
+.hud {
+  gap: 4px !important;
+  padding: 4px 8px !important;
+}
+
+/* Menu panel: prevent overflow on narrow screens */
+#menu-opts {
+  min-width: unset !important;
+  max-width: 95vw;
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: 10px 16px !important;
+  gap: 8px !important;
+  box-sizing: border-box;
+}
+
+/* ── Touch Controls ──────────────────────────────────────────────────────── */
+
+#touch-controls {
+  display: none;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  box-sizing: border-box;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+#touch-controls.visible { display: flex; }
+
+/* D-pad grid */
+.dpad {
+  display: grid;
+  grid-template-columns: 44px 44px 44px;
+  grid-template-rows: 44px 44px 44px;
+  gap: 3px;
+  pointer-events: auto;
+}
+.dpad-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(29,154,176,0.18);
+  border: 1.5px solid rgba(29,154,176,0.4);
+  border-radius: 10px;
+  color: #7ec8e3;
+  font-size: 20px;
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.08s, border-color 0.08s;
+}
+.dpad-btn:active,
+.dpad-btn.pressed {
+  background: rgba(29,154,176,0.45);
+  border-color: rgba(126,200,227,0.7);
+  box-shadow: 0 0 14px rgba(29,154,176,0.5);
+  color: #fff;
+}
+.dpad-blank { visibility: hidden; }
+
+/* Action (DRAW) button */
+.action-btn {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(231,111,81,0.2);
+  border: 2px solid rgba(231,111,81,0.5);
+  color: #e76f51;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.08s, border-color 0.08s;
+}
+.action-btn:active,
+.action-btn.pressed {
+  background: rgba(231,111,81,0.5);
+  border-color: rgba(244,211,94,0.8);
+  box-shadow: 0 0 20px rgba(231,111,81,0.5);
+  color: #fff;
+}
+
+/* Swipe zone overlay (visible when swipe mode is active) */
+#swipe-zone {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  touch-action: none;
+}
+#swipe-zone.active { display: block; }
+
+/* Control mode toggle in options */
+.ctrl-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #7aabb8;
+}
+.ctrl-toggle select {
+  background: #1f2a33;
+  border: 1px solid #2b3945;
+  color: #e7e7e7;
+  padding: 3px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+/* ── Small landscape screens (phones) ────────────────────────────────────── */
+@media (max-height: 440px) {
+  .hud { padding: 2px 6px !important; gap: 3px !important; }
+  .hud-card { padding: 2px 8px; min-width: 44px; }
+  .hud-label { font-size: 7px; letter-spacing: 1px; }
+  .hud-val { font-size: 13px; }
+  .hud-lives .hud-val { font-size: 11px; }
+  #touch-controls { padding: 2px 8px; }
+  .dpad { grid-template-columns: 38px 38px 38px; grid-template-rows: 38px 38px 38px; gap: 2px; }
+  .dpad-btn { font-size: 17px; border-radius: 8px; }
+  .action-btn { width: 60px; height: 60px; font-size: 11px; }
+  .btn { padding: 4px 8px; font-size: 11px; }
+  #menu-opts { padding: 8px 12px !important; gap: 6px !important; font-size: 11px; }
+  .vol-ctrl input[type=range] { width: 60px; }
+}
+
+/* ── Portrait orientation ────────────────────────────────────────────────── */
+@media (orientation: portrait) {
+  #outer-wrap {
+    width: 100vw !important;
+    padding-top: env(safe-area-inset-top, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .hud {
+    flex-wrap: wrap;
+  }
+  #touch-controls {
+    padding: 8px 16px;
+  }
+  .dpad {
+    grid-template-columns: 52px 52px 52px;
+    grid-template-rows: 52px 52px 52px;
+    gap: 4px;
+  }
+  .dpad-btn { font-size: 24px; border-radius: 12px; }
+  .action-btn { width: 84px; height: 84px; font-size: 15px; }
+}
