@@ -28,33 +28,22 @@
 
     canvas { display: block; width: 100%; height: 100%; background: #10161b; image-rendering: pixelated; }
 
-    /* HUD sits below the canvas */
+    /* HUD sits above the canvas */
     .hud {
       width: 100%;
-      display: flex; gap: 4px; align-items: center; flex-wrap: wrap; justify-content: center;
-      background: rgba(8,12,16,0.92); backdrop-filter: blur(6px);
-      padding: 4px 8px; border-radius: 10px; border: 1px solid #1e2c38;
+      display: flex; align-items: center; 
+      background: rgba(8,12,16,0.6); backdrop-filter: blur(6px);
+      padding: 4px; border-radius: 8px;
       white-space: nowrap; pointer-events: none;
       box-sizing: border-box;
+      position: relative; z-index: 10;
     }
     .hud button { pointer-events: auto; }
-    /* HUD stat cards */
-    .hud-card {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      background: linear-gradient(160deg, rgba(22,34,48,0.97), rgba(9,15,22,0.99));
-      border: 1px solid rgba(29,154,176,0.22); border-radius: 7px;
-      padding: 5px 14px; min-width: 60px;
+    .hud-stats {
+      display: flex; gap: 12px; align-items: center; justify-content: center; flex: 1;
+      font-size: 12px; font-weight: bold; color: #698294;
     }
-    .hud-label { font-size: 9px; font-weight: 700; letter-spacing: 1.6px; color: #3d5e70; text-transform: uppercase; line-height: 1; margin-bottom: 3px; }
-    .hud-val   { font-size: 17px; font-weight: 700; line-height: 1.1; color: #c8e0f0; }
-    .hud-level  { border-color: rgba(126,200,227,0.3); }
-    .hud-level  .hud-val { color: #7ec8e3; }
-    .hud-score  { border-color: rgba(244,211,94,0.3); }
-    .hud-score  .hud-val { color: #f4d35e; }
-    .hud-filled { border-color: rgba(110,231,183,0.3); }
-    .hud-filled .hud-val { color: #6ee7b7; }
-    .hud-lives  { border-color: rgba(231,111,81,0.3); }
-    .hud-lives  .hud-val { font-size: 14px; letter-spacing: 2px; }
+    .hud-stats span { font-size: 14px; display: inline-block; margin-left: 3px; }
     .vol-ctrl { display:flex; align-items:center; gap:5px; font-size:12px; color:#8ab; }
     .vol-ctrl input[type=range] { width:80px; cursor:pointer; accent-color:#1d9ab0; vertical-align:middle; }
 
@@ -63,6 +52,7 @@
       position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
       display: flex; flex-direction: column; align-items: center; gap: 8px;
       background: rgba(5,10,20,0.82); border: 1px solid rgba(29,154,176,0.32);
+      z-index: 100;
       border-radius: 14px; padding: 10px 16px; backdrop-filter: blur(10px);
       pointer-events: auto; white-space: nowrap; font-size: 12px; color: #7aabb8;
       max-width: 95vw; max-height: 55vh; overflow-y: auto; box-sizing: border-box;
@@ -129,12 +119,9 @@
     .credits-text a:hover { text-decoration:underline; }
 
     /* ── Touch Controls ──────────────────────────────────────────────── */
-    #touch-controls { display:none; width:100%; justify-content:space-between; align-items:center; padding:6px 12px; box-sizing:border-box; pointer-events:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+    #touch-controls { display:none; width:100%; justify-content:space-between; align-items:center; padding:6px 12px; box-sizing:border-box; pointer-events:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; position:relative; z-index:20; }
     #touch-controls.visible { display:flex; }
-    .dpad { display:grid; grid-template-columns:44px 44px 44px; grid-template-rows:44px 44px 44px; gap:3px; pointer-events:auto; }
-    .dpad-btn { display:flex; align-items:center; justify-content:center; background:rgba(29,154,176,0.18); border:1.5px solid rgba(29,154,176,0.4); border-radius:10px; color:#7ec8e3; font-size:20px; pointer-events:auto; touch-action:none; -webkit-tap-highlight-color:transparent; transition:background 0.08s,border-color 0.08s; }
-    .dpad-btn:active,.dpad-btn.pressed { background:rgba(29,154,176,0.45); border-color:rgba(126,200,227,0.7); box-shadow:0 0 14px rgba(29,154,176,0.5); color:#fff; }
-    .dpad-blank { visibility:hidden; }
+
     .action-btn { width:72px; height:72px; border-radius:50%; background:rgba(231,111,81,0.2); border:2px solid rgba(231,111,81,0.5); color:#e76f51; font-size:13px; font-weight:700; letter-spacing:1px; display:flex; align-items:center; justify-content:center; pointer-events:auto; touch-action:none; -webkit-tap-highlight-color:transparent; transition:background 0.08s,border-color 0.08s; }
     .action-btn:active,.action-btn.pressed { background:rgba(231,111,81,0.5); border-color:rgba(244,211,94,0.8); box-shadow:0 0 20px rgba(231,111,81,0.5); color:#fff; }
     #swipe-zone { display:none; position:absolute; inset:0; z-index:5; touch-action:none; }
@@ -150,8 +137,7 @@
       .hud-val { font-size:13px; }
       .hud-lives .hud-val { font-size:11px; }
       #touch-controls { padding:2px 8px; }
-      .dpad { grid-template-columns:38px 38px 38px; grid-template-rows:38px 38px 38px; gap:2px; }
-      .dpad-btn { font-size:17px; border-radius:8px; }
+
       .action-btn { width:60px; height:60px; font-size:11px; }
       .btn { padding:4px 8px; font-size:11px; }
       #menu-opts { padding:8px 12px; gap:6px; font-size:11px; }
@@ -160,8 +146,7 @@
     @media (orientation:portrait) {
       #outer-wrap { width:min(100vw, calc((100vh - 240px) * 600 / 800)) !important; padding-top:env(safe-area-inset-top,0); padding-bottom:env(safe-area-inset-bottom,0); }
       #touch-controls { padding:8px 16px; }
-      .dpad { grid-template-columns:52px 52px 52px; grid-template-rows:52px 52px 52px; gap:4px; }
-      .dpad-btn { font-size:24px; border-radius:12px; }
+
       .action-btn { width:84px; height:84px; font-size:15px; }
     }
 
@@ -169,11 +154,23 @@
 </head>
 <body>
   <div id="outer-wrap">
+    <div class="hud">
+      <div class="hud-stats">
+        <div id="lives-wrap" style="color:#e76f51;letter-spacing:1px;font-size:14px"></div>
+        <div>LVL <span id="level" style="color:#7ec8e3">1</span></div>
+        <div>SCORE <span id="score" style="color:#f4d35e">0</span></div>
+        <div>FILL <span id="filled" style="color:#6ee7b7">0</span>%</div>
+      </div>
+      <button class="btn" id="restart" style="font-size:18px;padding:2px 8px;background:none;border:none;flex-shrink:0;">&#9776;</button>
+    </div>
     <div id="game-wrap">
       <canvas id="game" width="800" height="600"></canvas>
       <div class="debug" id="debug"></div>
       <!-- Options panel — visible on main menu and when paused -->
       <div id="menu-opts">
+        <div class="opt-row" id="start-row">
+          <button class="btn" id="start-btn" style="font-size:16px;padding:10px 32px;border-color:#6ee7b7;color:#6ee7b7;font-weight:bold;background:rgba(110,231,183,0.15)">▶ PLAY GAME</button>
+        </div>
         <div class="opt-row" id="resume-row" style="display:none">
           <button class="btn" id="resume-btn" style="font-size:13px;padding:6px 18px;border-color:rgba(110,231,183,0.4);color:#6ee7b7">&#9654; Resume</button>
         </div>
@@ -189,6 +186,7 @@
         <div class="opt-row">
           <label class="vol-ctrl">Background
             <select id="bg-theme">
+              <option value="procedural" selected>Procedural</option>
               <option value="local">Local</option>
               <option value="landscape">Landscape</option>
               <option value="space">Space</option>
@@ -201,14 +199,7 @@
           </label>
           <span id="bg-status"></span>
         </div>
-        <div class="opt-row">
-          <label class="ctrl-toggle">🎮 Controls
-            <select id="ctrl-mode-select">
-              <option value="dpad">D-pad</option>
-              <option value="swipe">Swipe</option>
-            </select>
-          </label>
-        </div>
+
         <div class="opt-row">
           <button class="btn" id="adv-toggle">&#9881; Advanced</button>
         </div>
@@ -239,8 +230,9 @@
             <div id="sfx-assign-list" style="display:flex;flex-direction:column;gap:8px"></div>
           </div>
           <div class="adv-section">
-            <div class="adv-title">&#128100; Player Sprite</div>
+            <div class="adv-title">&#128100; Player Sprite & Speed</div>
             <div id="player-skin-list"></div>
+            <div id="player-speed-ctrl" style="margin-top:8px"></div>
           </div>
           <div class="adv-section">
             <div class="adv-title">&#127776; Background Images</div>
@@ -258,7 +250,7 @@
             <div class="adv-title">&#127758; Bonus Objects</div>
             <div style="display:flex;flex-direction:column;gap:8px">
               <label class="adv-check" id="bonus-enable-label">
-                <input type="checkbox" id="bonus-enable-cb"> Enable bonus objects (capture for points)
+                <input type="checkbox" id="bonus-enable-cb" checked> Enable bonus objects (capture for points)
               </label>
               <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:#7aabb8">
                 <span>Count per level:</span>
@@ -300,40 +292,9 @@
         </div>
       </div>
     </div>
-    <div class="hud">
-      <div class="hud-card hud-level">
-        <span class="hud-label">LVL</span>
-        <span class="hud-val" id="level">1</span>
-      </div>
-      <div class="hud-card hud-score">
-        <span class="hud-label">SCORE</span>
-        <span class="hud-val" id="score">0</span>
-      </div>
-      <div class="hud-card hud-filled">
-        <span class="hud-label">FILLED</span>
-        <span class="hud-val"><span id="filled">0</span>%</span>
-      </div>
-      <div class="hud-card hud-lives">
-        <span class="hud-label">LIVES</span>
-        <div id="lives-wrap" class="hud-val"></div>
-      </div>
-      <button class="btn" id="restart" style="font-size:12px;padding:5px 10px">&#9776; Menu</button>
-    </div>
-    <!-- Touch controls: D-pad + action button -->
-    <div id="touch-controls">
-      <div class="dpad">
-        <div class="dpad-blank"></div>
-        <button class="dpad-btn" data-dir="ArrowUp">▲</button>
-        <div class="dpad-blank"></div>
-        <button class="dpad-btn" data-dir="ArrowLeft">◀</button>
-        <div class="dpad-blank"></div>
-        <button class="dpad-btn" data-dir="ArrowRight">▶</button>
-        <div class="dpad-blank"></div>
-        <button class="dpad-btn" data-dir="ArrowDown">▼</button>
-        <div class="dpad-blank"></div>
-      </div>
-      <button class="action-btn" id="draw-btn">DRAW</button>
-    </div>
+
+    <!-- Touch controls disabled -->
+    <div id="touch-controls" style="display:none;"></div>
     <!-- Swipe overlay (invisible, sits on canvas) -->
     <div id="swipe-zone"></div>
   </div>
@@ -593,6 +554,7 @@
 }
 </script>
 
+<script src="../ProceduralBG.js"></script>
 <script>
 (() => {
   // --- Asset manifest: fetch live from server, fall back to embedded JSON ---
@@ -630,22 +592,30 @@
 
   // --- Config ---
   const IS_PORTRAIT = window.innerHeight > window.innerWidth;
-  const W = IS_PORTRAIT ? 600 : 800;
-  const H = IS_PORTRAIT ? 800 : 600;
+  const targetArea = 480000;
+  const availHeight = window.innerHeight - 60;
+  const screenRatio = window.innerWidth / (availHeight > 1 ? availHeight : 1);
+  const H = Math.round(Math.sqrt(targetArea / screenRatio));
+  const W = Math.round(H * screenRatio);
   {
     const canvasEl = document.getElementById('game');
     const wrapEl = document.getElementById('game-wrap');
     if (canvasEl) { canvasEl.width = W; canvasEl.height = H; }
     if (wrapEl) { wrapEl.style.aspectRatio = `${W} / ${H}`; }
   }
+  // Reload on orientation change so W/H/COLS/ROWS recalculate for the new screen shape
+  let _lastOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+  window.addEventListener('resize', () => {
+    const cur = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+    if (cur !== _lastOrientation) { _lastOrientation = cur; location.reload(); }
+  });
   const CELL = 8;                    // grid cell size (pixels)
   const COLS = Math.floor(W / CELL);
   const ROWS = Math.floor(H / CELL);
-  const SPEED = 3;                   // player speed in px/frame
-  const DRAW_SPEED = 3;              // speed while drawing
+  let playerSpeed = 3;               // player speed in px/frame
   const ENEMY_SPEED = 2.2;
   const SPARX_SPEED = 10;            // frames per step for Sparx
-  function levelTarget() { return Math.min(75 + Math.floor((level - 1) * 1.5), 90); }
+  function levelTarget() { return Math.min(85 + Math.floor((level - 1) * 1), 95); }
 
   const IMAGES = [
     'assets/backgrounds/landscape1.jpg',
@@ -851,6 +821,19 @@
       $bgStatus.className = '';
       return;
     }
+    if (theme === 'procedural') {
+      if (typeof window.ProceduralBG === 'undefined') {
+        customImages = null;
+        $bgStatus.textContent = 'ProceduralBG unavailable';
+        return;
+      }
+      const kw = (bgProceduralKeyword || 'COSMOS').toUpperCase();
+      customImages = null;
+      $bgStatus.textContent = 'Procedural · ' + kw;
+      $bgStatus.className = '';
+      if (!menuActive) loadLevelImage();
+      return;
+    }
     const cached = loadBgCache(theme);
     if (cached) {
       customImages = cached;
@@ -1044,6 +1027,7 @@
     { id: 'nasa',        label: 'NASA Images'          },
     { id: 'metmuseum',   label: 'Met Museum art'       },
   ];
+  let bgProceduralKeyword = 'COSMOS';
   let bgSpaceQueries    = [...BG_SPACE_DEFAULTS];
   let bgArtQueries      = [...BG_ART_DEFAULTS];
   let bgAnimeCategories = [...BG_ANIME_DEFAULTS];
@@ -1087,12 +1071,12 @@
   let sparxSkinIdx  = -1;  // -1 = procedural / random pool
 
   // Bonus objects
-  let bonusEnabled    = false;
+  let bonusEnabled    = true;
   let bonusSpriteIdx  = -1;
   let bonusCountBase  = 2;
   let bonusEntities   = [];
   const BONUS_SPEED    = 0.5;
-  const BONUS_PTS_BASE = 2000;
+  const BONUS_PTS_BASE = 200;
   let playerFrame = 0, playerFrameTick = 0;
   let spritePreviewCanvases = [];
   let spritePreviewInterval = null;
@@ -1218,16 +1202,21 @@
     bgLoaded = false;
     bgImage = new Image();
     bgImage.onload = () => { bgLoaded = true; };
-    if (customImages && customImages.length > 0) {
+    if ($bgTheme.value === 'procedural' && typeof window.ProceduralBG !== 'undefined') {
+      const kw = (bgProceduralKeyword || 'COSMOS').toUpperCase();
+      const svg = window.ProceduralBG.drawBackground(kw, level, 800, 600);
+      bgImage.src = 'data:image/svg+xml,' + encodeURIComponent(svg);
+      bgCredit = 'Background: ProceduralBG · ' + kw;
+    } else if (customImages && customImages.length > 0) {
       bgImage.src = customImages[(level - 1) % customImages.length]; // online theme (any level)
       const themeCredits = {
-        landscape: 'Photos: Picsum Photos (CC0)',
-        city:      'Photos: Picsum Photos (CC0)',
-        nature:    'Photos: Picsum Photos (CC0)',
-        space:     'Images: NASA Image Gallery',
-        anime:     'Art: nekos.best',
-        art:       'Art: Metropolitan Museum of Art (Public Domain)',
-        custom:    'Photos: Wikimedia Commons (CC BY-SA)',
+        landscape:  'Photos: Picsum Photos (CC0)',
+        city:       'Photos: Picsum Photos (CC0)',
+        nature:     'Photos: Picsum Photos (CC0)',
+        space:      'Images: NASA Image Gallery',
+        anime:      'Art: nekos.best',
+        art:        'Art: Metropolitan Museum of Art (Public Domain)',
+        custom:     'Photos: Wikimedia Commons (CC BY-SA)',
       };
       bgCredit = themeCredits[$bgTheme.value] || '';
     } else if ($bgTheme.value === 'local' && apodImageUrl && level % IMAGES.length === 0) {
@@ -1326,34 +1315,34 @@
   }
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Draw a procedural Sparx: bright animated electric spark crawling the border
+  // Draw a procedural Sparx: white-cyan electric spark crawling the border
   function drawSparxProcedural(sx, sy, timeSec) {
-    const hue  = (timeSec * 260) % 360;
-    const hue2 = (hue + 40) % 360;
     ctx.save();
-    ctx.shadowColor = `hsl(${hue},100%,75%)`;
-    ctx.shadowBlur = 12;
-    // Animated radiating rays
-    const numRays = 6;
+    ctx.shadowColor = 'rgba(140,220,255,0.9)';
+    ctx.shadowBlur = 10;
+    // Erratic lightning-bolt rays (8 rays, irregular lengths)
+    const numRays = 8;
     for (let i = 0; i < numRays; i++) {
-      const angle  = (i / numRays) * Math.PI * 2 + timeSec * 9;
-      const rayLen = CELL * (0.7 + 0.45 * Math.abs(Math.sin(timeSec * 14 + i * 1.5)));
-      ctx.strokeStyle = `hsl(${(hue + i * 22) % 360},100%,78%)`;
-      ctx.lineWidth = 1.5;
+      const angle  = (i / numRays) * Math.PI * 2 + timeSec * 11;
+      const flicker = Math.abs(Math.sin(timeSec * 22 + i * 2.3));
+      const rayLen = CELL * (0.35 + 0.55 * flicker);
+      const bright = Math.round(75 + 20 * flicker);
+      ctx.strokeStyle = `hsl(195,90%,${bright}%)`;
+      ctx.lineWidth = 1 + flicker;
       ctx.beginPath();
       ctx.moveTo(sx, sy);
       ctx.lineTo(sx + Math.cos(angle) * rayLen, sy + Math.sin(angle) * rayLen);
       ctx.stroke();
     }
-    // Bright core
-    const coreR = CELL * (0.28 + 0.12 * Math.sin(timeSec * 20));
-    const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, coreR * 2.2);
-    grad.addColorStop(0, `hsl(${hue2},100%,98%)`);
-    grad.addColorStop(0.4, `hsl(${hue},100%,72%)`);
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    // Bright white-blue core
+    const coreR = CELL * (0.22 + 0.10 * Math.sin(timeSec * 24));
+    const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, coreR * 2);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.35, 'rgba(140,220,255,0.85)');
+    grad.addColorStop(1, 'rgba(0,80,140,0)');
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.arc(sx, sy, coreR * 2.2, 0, Math.PI * 2);
+    ctx.arc(sx, sy, coreR * 2, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -1409,14 +1398,27 @@
     c.restore();
   }
 
-  // Procedural bonus object: rotating 5-pointed star with rainbow colour
+  // Procedural bonus object: large rotating 5-pointed star with golden glow
   function drawBonusProcedural(b, timeSec) {
     ctx.save();
     ctx.translate(b.x, b.y);
-    const t    = timeSec + (b.x + b.y) * 0.003;
-    const hue  = (t * 90) % 360;
-    const outer = CELL * 0.55, inner = CELL * 0.22;
-    ctx.rotate(t * 1.2);
+    const t     = timeSec + (b.x + b.y) * 0.003;
+    const hue   = (t * 60 + 30) % 360;   // warm gold-to-rainbow cycle
+    const pulse = 0.9 + 0.1 * Math.sin(t * 3);
+    const outer = CELL * 2.0 * pulse;
+    const inner = CELL * 0.8 * pulse;
+    ctx.rotate(t * 1.0);
+
+    // Outer glow ring
+    const glow = ctx.createRadialGradient(0, 0, inner, 0, 0, outer * 1.5);
+    glow.addColorStop(0, `hsla(${hue},100%,70%,0.3)`);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(0, 0, outer * 1.5, 0, Math.PI * 2); ctx.fill();
+
+    // Star shape — filled + outlined
+    ctx.shadowColor = `hsl(${hue},100%,65%)`;
+    ctx.shadowBlur = 18;
     ctx.beginPath();
     for (let i = 0; i < 10; i++) {
       const a = (i * Math.PI) / 5 - Math.PI / 2;
@@ -1425,16 +1427,18 @@
               : ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
     }
     ctx.closePath();
-    ctx.strokeStyle = `hsl(${hue},100%,72%)`;
-    ctx.lineWidth = 1.5;
-    ctx.shadowColor = `hsl(${hue},100%,70%)`;
-    ctx.shadowBlur = 12;
+    ctx.fillStyle = `hsla(${hue},100%,58%,0.4)`;
+    ctx.fill();
+    ctx.strokeStyle = `hsl(${hue},100%,82%)`;
+    ctx.lineWidth = 2.5;
     ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(0, 0, inner * (0.8 + 0.2 * Math.sin(t * 4)), 0, Math.PI * 2);
-    ctx.strokeStyle = `hsl(${(hue + 60) % 360},100%,80%)`;
-    ctx.lineWidth = 1; ctx.shadowBlur = 6;
-    ctx.stroke();
+
+    // Bright pulsing centre
+    const cr = inner * (0.7 + 0.3 * Math.sin(t * 5));
+    ctx.beginPath(); ctx.arc(0, 0, cr, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${(hue + 50) % 360},100%,88%,0.75)`;
+    ctx.shadowBlur = 10;
+    ctx.fill();
     ctx.restore();
   }
 
@@ -1446,6 +1450,7 @@
     if (paused) {
       $menuOpts.classList.remove('hidden');
       $resumeRow.style.display = 'flex';
+      const sr = document.getElementById('start-row'); if (sr) sr.style.display = 'none';
       bgAudio.pause();
     } else {
       $menuOpts.classList.add('hidden');
@@ -1479,116 +1484,254 @@
   $restart.onclick = () => {
     if (paused) { paused = false; $resumeRow.style.display = 'none'; }
     menuActive = true; $hud.classList.add('hidden'); $menuOpts.classList.remove('hidden');
+    const sr = document.getElementById('start-row'); if (sr) sr.style.display = 'flex';
     stopBGM(); playBGM(menuMusicSrc);
   };
+  const $startBtn = document.getElementById('start-btn');
+  if ($startBtn) {
+    $startBtn.onclick = () => {
+      if (menuActive) {
+        _startMenuMusic();
+        document.getElementById('start-row').style.display = 'none';
+        keys.add(' '); setTimeout(() => keys.delete(' '), 100);
+      }
+    };
+  }
 
   // ── Touch Controls System ──────────────────────────────────────────────────
   const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
   const $touchControls = document.getElementById('touch-controls');
-  const $drawBtn = document.getElementById('draw-btn');
   const $swipeZone = document.getElementById('swipe-zone');
-  const $ctrlSelect = document.getElementById('ctrl-mode-select');
-  let controlMode = localStorage.getItem('qixit_ctrl_mode') || 'dpad';
+  let controlMode = 'touch';
+  let touchTarget = null;
 
-  if (isTouchDevice) {
-    $touchControls.classList.add('visible');
-    if ($ctrlSelect) $ctrlSelect.value = controlMode;
-
-    // Layout recalculation for touch controls height
-    const recalcLayout = () => {
-      const touchH = $touchControls.offsetHeight || 0;
-      const hudH = $hud.offsetHeight || 0;
-      const reservedH = touchH + hudH + 8;
-      const ow = document.getElementById('outer-wrap');
-      ow.style.width = `min(100vw, calc((100vh - ${reservedH}px) * 800 / 600))`;
-    };
-    requestAnimationFrame(() => requestAnimationFrame(recalcLayout));
-    addEventListener('resize', recalcLayout);
-
-    // D-pad buttons
-    document.querySelectorAll('.dpad-btn').forEach(btn => {
-      const dir = btn.dataset.dir;
-      btn.addEventListener('touchstart', e => { e.preventDefault(); keys.add(dir); btn.classList.add('pressed'); }, { passive: false });
-      btn.addEventListener('touchend', e => { e.preventDefault(); keys.delete(dir); btn.classList.remove('pressed'); }, { passive: false });
-      btn.addEventListener('touchcancel', () => { keys.delete(dir); btn.classList.remove('pressed'); });
-    });
-
-    // DRAW button
-    $drawBtn.addEventListener('touchstart', e => { e.preventDefault(); keys.add(' '); $drawBtn.classList.add('pressed'); }, { passive: false });
-    $drawBtn.addEventListener('touchend', e => { e.preventDefault(); keys.delete(' '); $drawBtn.classList.remove('pressed'); }, { passive: false });
-    $drawBtn.addEventListener('touchcancel', () => { keys.delete(' '); $drawBtn.classList.remove('pressed'); });
-
-    // Swipe controls
-    let swipeStartX = 0, swipeStartY = 0, swipeDir = null;
-    $swipeZone.addEventListener('touchstart', e => { e.preventDefault(); swipeStartX = e.changedTouches[0].clientX; swipeStartY = e.changedTouches[0].clientY; swipeDir = null; }, { passive: false });
-    $swipeZone.addEventListener('touchmove', e => {
-      e.preventDefault();
-      const t = e.changedTouches[0], dx = t.clientX - swipeStartX, dy = t.clientY - swipeStartY;
-      if (Math.sqrt(dx*dx+dy*dy) < 20) return;
-      const nd = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'ArrowRight' : 'ArrowLeft') : (dy > 0 ? 'ArrowDown' : 'ArrowUp');
-      if (nd !== swipeDir) { if (swipeDir) keys.delete(swipeDir); keys.add(nd); swipeDir = nd; }
-      swipeStartX = t.clientX; swipeStartY = t.clientY;
-    }, { passive: false });
-    $swipeZone.addEventListener('touchend', e => { e.preventDefault(); if (swipeDir) { keys.delete(swipeDir); swipeDir = null; } }, { passive: false });
-    $swipeZone.addEventListener('touchcancel', () => { if (swipeDir) { keys.delete(swipeDir); swipeDir = null; } });
-
-    // Tap on canvas to start/continue
-    canvas.addEventListener('touchstart', e => {
-      if (controlMode === 'swipe' && $swipeZone.classList.contains('active')) return;
-      e.preventDefault();
-      _startMenuMusic();
-      keys.add(' '); setTimeout(() => keys.delete(' '), 100);
-    }, { passive: false });
-
-    // Control mode toggle
-    function applyControlMode() {
-      if (controlMode === 'swipe') {
-        document.querySelector('.dpad').style.display = 'none';
-        $drawBtn.style.display = 'none';
-        $swipeZone.classList.add('active');
-        $touchControls.style.display = 'none';
-      } else {
-        document.querySelector('.dpad').style.display = '';
-        $drawBtn.style.display = '';
-        $swipeZone.classList.remove('active');
-        $touchControls.style.display = '';
-        $touchControls.classList.add('visible');
-      }
-      localStorage.setItem('qixit_ctrl_mode', controlMode);
-      requestAnimationFrame(() => requestAnimationFrame(recalcLayout));
+  // Universal Pointer Controls for Canvas and Buttons
+  const recalcLayout = () => {
+    const touchH = $touchControls ? ($touchControls.offsetHeight || 0) : 0;
+    const ow = document.getElementById('outer-wrap');
+    const wrapRatio = W / H;
+    
+    // Pass 1: measure with current hud height
+    let hudH = $hud.offsetHeight || 0;
+    ow.style.width = `min(100vw, calc((100vh - ${touchH + hudH + 8}px) * ${wrapRatio}))`;
+    
+    // Force layout flush so we can check if it wrapped
+    void ow.offsetHeight;
+    
+    // Pass 2: check if HUD wrapped due to narrower width, and remeasure
+    let newHudH = $hud.offsetHeight || 0;
+    if (newHudH !== hudH) {
+      ow.style.width = `min(100vw, calc((100vh - ${touchH + newHudH + 8}px) * ${wrapRatio}))`;
     }
-    applyControlMode();
-    if ($ctrlSelect) $ctrlSelect.addEventListener('change', e => { controlMode = e.target.value; applyControlMode(); });
+  };
+  requestAnimationFrame(() => requestAnimationFrame(recalcLayout));
+  addEventListener('resize', recalcLayout);
+
+  function updateTouchTarget(e) {
+      if (controlMode !== 'touch') return;
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const scaleX = (canvas.width / dpr) / rect.width;
+      const scaleY = (canvas.height / dpr) / rect.height;
+      touchTarget = {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+      };
   }
 
-  function updatePlayer(){
-    const speed = drawing ? DRAW_SPEED : SPEED;
-    player.vx = (keys.has('ArrowRight')? speed:0) + (keys.has('ArrowLeft')? -speed:0);
-    player.vy = (keys.has('ArrowDown') ? speed:0) + (keys.has('ArrowUp')   ? -speed:0);
+  $swipeZone.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    _startMenuMusic();
+    keys.add(' '); setTimeout(() => keys.delete(' '), 100);
+    if (controlMode === 'touch') {
+        $swipeZone.setPointerCapture(e.pointerId);
+        updateTouchTarget(e);
+    }
+  });
 
-    // Fix #3: 4-directional movement only — no diagonals
+  $swipeZone.addEventListener('pointermove', e => {
+    if (controlMode === 'touch' && $swipeZone.hasPointerCapture(e.pointerId)) {
+        updateTouchTarget(e);
+    }
+  });
+
+  $swipeZone.addEventListener('pointerup', e => {
+    if (controlMode === 'touch') {
+        $swipeZone.releasePointerCapture(e.pointerId);
+        touchTarget = null;
+        player.touchAxis = null;
+    }
+  });
+
+  $swipeZone.addEventListener('pointercancel', e => {
+    touchTarget = null;
+    player.touchAxis = null;
+  });
+
+  // Handle visual toggle
+  $swipeZone.classList.add('active');
+  if ($touchControls) { $touchControls.style.display = 'none'; $touchControls.classList.remove('visible'); }
+  requestAnimationFrame(() => requestAnimationFrame(recalcLayout));
+
+  function updatePlayer(){
+    const speed = playerSpeed;
+    let reqVx = 0, reqVy = 0;
+    
+    if (controlMode === 'touch' && touchTarget) {
+      const dx = touchTarget.x - player.x;
+      const dy = touchTarget.y - player.y;
+      
+      const deadzone = CELL * 0.8;
+      let tryX = 0, tryY = 0;
+      if (Math.abs(dx) >= deadzone) tryX = (dx > 0) ? speed : -speed;
+      if (Math.abs(dy) >= deadzone) tryY = (dy > 0) ? speed : -speed;
+
+      const isBlocked = (vx, vy) => {
+          let testX = player.x + vx;
+          let testY = player.y + vy;
+          const cCurr = Math.round(player.x / CELL - 0.5);
+          const rCurr = Math.round(player.y / CELL - 0.5);
+          const cNext = Math.round(testX / CELL - 0.5);
+          const rNext = Math.round(testY / CELL - 0.5);
+          const blockCell = (cell) => cell === FILLED;
+          if (vx !== 0 && (!inside(cNext, rCurr) || blockCell(grid[rCurr][cNext]))) return true;
+          if (vy !== 0 && (!inside(cCurr, rNext) || blockCell(grid[rNext][cCurr]))) return true;
+          return false;
+      };
+
+      if (!drawing) {
+         if (Math.abs(dx) > Math.abs(dy)) {
+             if (tryX !== 0 && !isBlocked(tryX, 0)) { reqVx = tryX; }
+             else if (tryY !== 0 && !isBlocked(0, tryY)) { reqVy = tryY; }
+         } else {
+             if (tryY !== 0 && !isBlocked(0, tryY)) { reqVy = tryY; }
+             else if (tryX !== 0 && !isBlocked(tryX, 0)) { reqVx = tryX; }
+         }
+      } else {
+         // Hard axis lock memory to definitively prevent diagonal staircases
+         if (!player.touchAxis) {
+             if (tryX !== 0 || tryY !== 0) {
+                 player.touchAxis = (Math.abs(dx) > Math.abs(dy)) ? 'x' : 'y';
+             }
+         } else {
+             // Break lock only if dragged overwhelmingly (1.5x) in the orthogonal direction
+             if (player.touchAxis === 'x') {
+                 if (Math.abs(dy) > Math.abs(dx) * 3.0 && tryY !== 0) player.touchAxis = 'y';
+             } else {
+                 if (Math.abs(dx) > Math.abs(dy) * 3.0 && tryX !== 0) player.touchAxis = 'x';
+             }
+         }
+         
+         if (player.touchAxis === 'x') {
+             if (tryX !== 0 && !isBlocked(tryX, 0)) { reqVx = tryX; }
+         } else if (player.touchAxis === 'y') {
+             if (tryY !== 0 && !isBlocked(0, tryY)) { reqVy = tryY; }
+         }
+      }
+    } else {
+       reqVx = (keys.has('ArrowRight')? speed:0) + (keys.has('ArrowLeft')? -speed:0);
+       reqVy = (keys.has('ArrowDown') ? speed:0) + (keys.has('ArrowUp')   ? -speed:0);
+    }
+    
+    player.vx = reqVx;
+    player.vy = reqVy;
+
+    // 4-directional movement only
     if (player.vx !== 0) player.vy = 0;
+
+    // Magnetic snap to border to assist closing areas comfortably with touch
+    if (drawing && player.vx === 0 && player.vy === 0 && trailPath.length > 5) {
+        const cc = Math.round(player.x / CELL - 0.5);
+        const cr = Math.round(player.y / CELL - 0.5);
+        let snapX = 0, snapY = 0;
+        
+        // Check 1-cell radius (8px)
+        if (inside(cc+1, cr) && grid[cr][cc+1] === WALL) snapX = playerSpeed;
+        else if (inside(cc-1, cr) && grid[cr][cc-1] === WALL) snapX = -playerSpeed;
+        else if (inside(cc, cr+1) && grid[cr+1][cc] === WALL) snapY = playerSpeed;
+        else if (inside(cc, cr-1) && grid[cr-1][cc] === WALL) snapY = -playerSpeed;
+        
+        // Check 2-cell radius (16px) if no adjacent
+        if (snapX === 0 && snapY === 0) {
+            if (inside(cc+2, cr) && grid[cr][cc+2] === WALL) snapX = playerSpeed;
+            else if (inside(cc-2, cr) && grid[cr][cc-2] === WALL) snapX = -playerSpeed;
+            else if (inside(cc, cr+2) && grid[cr+2][cc] === WALL) snapY = playerSpeed;
+            else if (inside(cc, cr-2) && grid[cr-2][cc] === WALL) snapY = -playerSpeed;
+        }
+        
+        if (snapX !== 0 || snapY !== 0) {
+            player.vx = snapX;
+            player.vy = snapY;
+        }
+    }
 
     let pxNext = player.x + player.vx;
     let pyNext = player.y + player.vy;
 
-    // Restrict movement: block FILLED (cleared area) always; block EMPTY unless drawing
-    if (!drawing) {
-      const cCurr = Math.round(player.x / CELL - 0.5);
-      const rCurr = Math.round(player.y / CELL - 0.5);
-      const cNext = Math.round(pxNext / CELL - 0.5);
-      const rNext = Math.round(pyNext / CELL - 0.5);
-      const blockCell = (cell) => cell === FILLED || (!keys.has(' ') && cell === EMPTY);
-      if (inside(cNext, rCurr) && blockCell(grid[rCurr][cNext])) pxNext = player.x;
-      if (inside(cCurr, rNext) && blockCell(grid[rNext][cCurr])) pyNext = player.y;
+    // Restrict movement: block FILLED (cleared area) physically using bounding box
+    {
+      const r = CELL / 2 - 0.1; // Player radius
+      const blockCell = (c, r) => !inside(c, r) || grid[r][c] === FILLED;
+      
+      // Test X
+      if (player.vx > 0) {
+        const cRight = Math.floor((pxNext + r) / CELL);
+        const rTop = Math.floor((player.y - r) / CELL);
+        const rBottom = Math.floor((player.y + r) / CELL);
+        if (blockCell(cRight, rTop) || blockCell(cRight, rBottom)) {
+          pxNext = cRight * CELL - CELL/2; player.vx = 0;
+        }
+      } else if (player.vx < 0) {
+        const cLeft = Math.floor((pxNext - r) / CELL);
+        const rTop = Math.floor((player.y - r) / CELL);
+        const rBottom = Math.floor((player.y + r) / CELL);
+        if (blockCell(cLeft, rTop) || blockCell(cLeft, rBottom)) {
+          pxNext = (cLeft + 1) * CELL + CELL/2; player.vx = 0;
+        }
+      }
+      
+      // Test Y
+      if (player.vy > 0) {
+        const cLeft = Math.floor((pxNext - r) / CELL);
+        const cRight = Math.floor((pxNext + r) / CELL);
+        const rBottom = Math.floor((pyNext + r) / CELL);
+        if (blockCell(cLeft, rBottom) || blockCell(cRight, rBottom)) {
+          pyNext = rBottom * CELL - CELL/2; player.vy = 0;
+        }
+      } else if (player.vy < 0) {
+        const cLeft = Math.floor((pxNext - r) / CELL);
+        const cRight = Math.floor((pxNext + r) / CELL);
+        const rTop = Math.floor((pyNext - r) / CELL);
+        if (blockCell(cLeft, rTop) || blockCell(cRight, rTop)) {
+          pyNext = (rTop + 1) * CELL + CELL/2; player.vy = 0;
+        }
+      }
     }
 
-    // Arm pendingDraw when space is pressed while on the border wall
-    if (!drawing && keys.has(' ') && player.onWall) pendingDraw = true;
+    // Arm pendingDraw automatically when stepping off the wall
+    if (!drawing && player.onWall) pendingDraw = true;
 
     // Move; constrain to grid bounds
     player.x = Math.max(CELL/2, Math.min(W-CELL/2, pxNext));
     player.y = Math.max(CELL/2, Math.min(H-CELL/2, pyNext));
+
+    // Post-move safety net: if player somehow ended up in a FILLED cell, eject them
+    {
+      const safeC = Math.round(player.x / CELL - 0.5);
+      const safeR = Math.round(player.y / CELL - 0.5);
+      if (inside(safeC, safeR) && grid[safeR][safeC] === FILLED) {
+        // Snap to nearest WALL or EMPTY cell
+        const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+        for (const [ddx,ddy] of dirs) {
+          const nc = safeC+ddx, nr = safeR+ddy;
+          if (inside(nc,nr) && grid[nr][nc] !== FILLED) {
+            player.x = nc * CELL + CELL/2;
+            player.y = nr * CELL + CELL/2;
+            break;
+          }
+        }
+      }
+    }
 
     // Cell interactions
     const cc = Math.round(player.x / CELL - 0.5);
@@ -1669,6 +1812,16 @@
       }
 
       e.x = nx; e.y = ny;
+
+      // Post-move safety: if enemy ended up in a FILLED cell, revert to last valid position
+      const cPost = Math.round(e.x / CELL - 0.5), rPost = Math.round(e.y / CELL - 0.5);
+      if (inside(cPost, rPost) && grid[rPost][cPost] === FILLED) {
+        e.x = px; e.y = py;
+        const a = Math.random() * Math.PI * 2;
+        const curSpd = Math.hypot(e.vx, e.vy) || ENEMY_SPEED;
+        e.vx = Math.cos(a) * curSpd;
+        e.vy = Math.sin(a) * curSpd;
+      }
 
       // Trail collision -> lose life
       const c2 = Math.round(e.x / CELL - 0.5);
@@ -1779,7 +1932,7 @@
 
     // Fill the smallest region; if it contains an enemy, that enemy is trapped and explodes
     regions.sort((a,b) => a.cells.length - b.cells.length);
-    let choice = regions[0];
+    let choice = regions.length > 1 ? regions[0] : { cells: [] };
     if (!choice) return;
 
     // Detect enemies trapped inside the filled region
@@ -1788,7 +1941,7 @@
       const re = Math.round(e.y / CELL - 0.5);
       if (choice.cells.some(([fcx, fcy]) => fcx === ce && fcy === re)) {
         triggerEnemyExplosion(e.x, e.y);
-        score += 1000 * level;
+        score += 100 * level;
         enemies.splice(enemies.indexOf(e), 1);
       }
     }
@@ -1808,10 +1961,36 @@
       }
     }
 
-    for (const [x,y] of choice.cells){ grid[y][x]=FILLED; score += 10; }
+    for (const [x,y] of choice.cells){ grid[y][x]=FILLED; score += 1; }
 
     // Convert remaining trail to wall
     for (const [x,y] of trailCells) grid[y][x]=WALL;
+
+    // Auto-fill any EMPTY regions now completely surrounded by FILLED cells
+    // (no adjacent WALL = unreachable by player)
+    {
+      const seen = new Set();
+      for (let ry = 0; ry < ROWS; ry++) {
+        for (let rx = 0; rx < COLS; rx++) {
+          if (grid[ry][rx] !== EMPTY || seen.has(rx + ',' + ry)) continue;
+          const region = [], queue = [[rx, ry]];
+          let hasWall = false;
+          seen.add(rx + ',' + ry);
+          while (queue.length) {
+            const [cx, cy] = queue.shift();
+            region.push([cx, cy]);
+            for (const [dx, dy] of neighbors) {
+              const nx = cx + dx, ny = cy + dy;
+              if (!inside(nx, ny)) { hasWall = true; continue; }
+              if (grid[ny][nx] === WALL) { hasWall = true; continue; }
+              if (grid[ny][nx] !== EMPTY || seen.has(nx + ',' + ny)) continue;
+              seen.add(nx + ',' + ny); queue.push([nx, ny]);
+            }
+          }
+          if (!hasWall) for (const [fx, fy] of region) { grid[fy][fx] = FILLED; score += 1; }
+        }
+      }
+    }
 
     playSFX(sfxClaim);
 
@@ -1820,7 +1999,7 @@
 
     // Level complete check
     if (percentFilled() >= levelTarget()) {
-      score += level * 1000; // level completion bonus
+      score += level * 100; // level completion bonus
       updateHUD();
       levelComplete = true; levelCompleteTime = performance.now();
       stopBGM();
@@ -1830,10 +2009,10 @@
 
   function percentFilled(){
     let filled=0;
-    for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) if (grid[y][x]===FILLED) filled++;
-    const total = COLS*ROWS;
-    const border = COLS*2 + (ROWS-2)*2;
-    return Math.floor(filled / (total - border) * 100);
+    for (let y=1;y<ROWS-1;y++) for (let x=1;x<COLS-1;x++) {
+      if (grid[y][x]===FILLED) filled++;
+    }
+    return Math.floor(filled / ((COLS-2)*(ROWS-2)) * 100);
   }
 
   function triggerExplosion(x, y){
@@ -1942,17 +2121,14 @@
       ctx.save();
       ctx.font = `bold ${Math.round(90*pulse)}px system-ui`;
       ctx.fillStyle = '#e7f6ff';
-      ctx.shadowColor = '#1df0ff'; ctx.shadowBlur = 10; ctx.fillText('QIXIT', W/2, H/2 - 60);
-      ctx.shadowColor = '#1df0ff'; ctx.shadowBlur = 20; ctx.fillText('QIXIT', W/2, H/2 - 60);
-      ctx.shadowColor = '#0b6e82'; ctx.shadowBlur = 50; ctx.fillText('QIXIT', W/2, H/2 - 60);
-      ctx.shadowColor = '#0b6e82'; ctx.shadowBlur = 90; ctx.fillText('QIXIT', W/2, H/2 - 60);
-      ctx.shadowBlur = 0; ctx.restore();
+      ctx.fillText('QIXIT', W/2, H/2 - 60);
+      ctx.restore();
       ctx.font = '16px system-ui'; ctx.fillStyle = '#5a8fa0';
       ctx.fillText('Claim the field · Avoid the Qix', W/2, H/2 - 20);
       ctx.strokeStyle = 'rgba(29,154,176,0.4)'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(200,H/2+2); ctx.lineTo(W-200,H/2+2); ctx.stroke();
       ctx.font = '14px system-ui'; ctx.fillStyle = '#4a6a78';
-      ctx.fillText(isTouchDevice ? 'D-pad to move  ·  Hold DRAW to claim  ·  Return to border to fill' : 'Arrow keys  ·  Hold Space to draw  ·  Return to border to fill', W/2, H/2+28);
+      ctx.fillText(isTouchDevice ? 'Touch to steer  ·  Move off border to claim  ·  Return to border to fill' : 'Arrow keys  ·  Move off border to claim  ·  Return to border to fill', W/2, H/2+28);
       ctx.font = '20px system-ui'; ctx.fillStyle = '#e76f51';
       ctx.fillText('♥  ♥  ♥', W/2, H/2+70);
       ctx.font = '11px system-ui'; ctx.fillStyle = '#3a5560';
@@ -1975,9 +2151,9 @@
       for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) if (grid[y][x]===WALL||grid[y][x]===FILLED) ctx.rect(x*CELL, y*CELL, CELL, CELL);
       ctx.clip();
       ctx.drawImage(bgImage, 0, 0, W, H);
-      // Neon glow border on claimed area edges
+      // Neon glow border on claimed area edges (no shadowBlur for performance)
       ctx.restore(); ctx.save();
-      ctx.shadowColor = '#1df0ff'; ctx.shadowBlur = 8; ctx.strokeStyle = 'rgba(29,240,255,0.6)'; ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(29,240,255,0.6)'; ctx.lineWidth = 1.5;
       ctx.beginPath();
       for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) {
         if (grid[y][x]===WALL || grid[y][x]===FILLED) {
@@ -1996,9 +2172,9 @@
       // Fallback: solid teal for wall/filled cells
       ctx.fillStyle = '#1d6c74';
       for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) if (grid[y][x]===WALL||grid[y][x]===FILLED) ctx.fillRect(x*CELL, y*CELL, CELL, CELL);
-      // Neon glow border on fallback
+      // Neon border on fallback (no shadowBlur for performance)
       ctx.save();
-      ctx.shadowColor = '#1df0ff'; ctx.shadowBlur = 8; ctx.strokeStyle = 'rgba(29,240,255,0.6)'; ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(29,240,255,0.6)'; ctx.lineWidth = 1.5;
       ctx.beginPath();
       for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) {
         if (grid[y][x]===WALL || grid[y][x]===FILLED) {
@@ -2011,21 +2187,22 @@
       ctx.stroke(); ctx.restore();
     }
 
-    // Sparkles on borders
+    // Sparkles on borders (scan only border rows/cols for performance)
     const pt = performance.now() / 1000;
     ctx.fillStyle = '#ffffff';
-    for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) {
+    const sparkleCheck = (x, y) => {
       if (grid[y][x]===WALL && ((x*13.7 + y*23.1 + pt*3.5) % 1) > 0.96) {
         ctx.globalAlpha = 0.4 + 0.6 * ((x*7.1+y*11.3 + pt*7) % 1);
         ctx.fillRect(x*CELL + ((x*11.1)%CELL), y*CELL + ((y*17.3)%CELL), 1.5, 1.5);
       }
-    }
+    };
+    for (let x=0;x<COLS;x++) { sparkleCheck(x, 0); sparkleCheck(x, ROWS-1); }
+    for (let y=1;y<ROWS-1;y++) { sparkleCheck(0, y); sparkleCheck(COLS-1, y); }
     ctx.globalAlpha = 1;
 
     // Trail
     if (trailPath && trailPath.length > 0) {
       ctx.save();
-      ctx.shadowBlur = 12; ctx.shadowColor = '#f4d35e';
       ctx.strokeStyle = '#f4d35e'; ctx.lineWidth = CELL * 0.9;
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       ctx.beginPath();
@@ -2040,7 +2217,7 @@
          ctx.lineTo(pc*CELL + CELL/2, pr*CELL + CELL/2);
       }
       ctx.stroke();
-      ctx.strokeStyle = '#fffbe6'; ctx.lineWidth = CELL * 0.4; ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#fffbe6'; ctx.lineWidth = CELL * 0.4;
       ctx.stroke();
       ctx.restore();
     }
@@ -2060,16 +2237,14 @@
           const _pTotal = _pCols * Math.floor(_pImg.naturalHeight / _pFsz);
           playerFrame = (playerFrame + 1) % (_pTotal || 1);
         }
-        drawSpriteFrame(_pImg, playerFrame, cx, cy, CELL * 2, CELL * 2, null, _pImg._frameSize);
+        drawSpriteFrame(_pImg, playerFrame, cx, cy, CELL * 3, CELL * 3, null, _pImg._frameSize);
       } else {
         // Procedural animated glowing rhomboid
         const t = performance.now() / 1000;
         const pulse = 1 + 0.18 * Math.sin(t * 5);
-        const r = CELL * 0.72 * pulse;
+        const r = CELL * 1.1 * pulse;
         const [rc, gc, bc] = drawing ? [244, 211, 94] : [231, 111, 81];
         ctx.save();
-        ctx.shadowColor = `rgb(${rc},${gc},${bc})`;
-        ctx.shadowBlur = 14 + 8 * Math.sin(t * 3);
         // Outer glow ring
         const ro = r * 1.65;
         ctx.strokeStyle = `rgba(${rc},${gc},${bc},0.35)`;
@@ -2092,7 +2267,6 @@
         // Inner bright core
         const ri = r * 0.32;
         ctx.fillStyle = '#ffffff';
-        ctx.shadowBlur = 18;
         ctx.beginPath();
         ctx.moveTo(cx, cy - ri); ctx.lineTo(cx + ri, cy);
         ctx.lineTo(cx, cy + ri); ctx.lineTo(cx - ri, cy);
@@ -2113,8 +2287,6 @@
         const radius = p.r * (1 - t * 0.6);
         ctx.save();
         ctx.globalAlpha = alpha;
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = p.color;
         ctx.fillStyle = p.color;
         ctx.beginPath();
         ctx.arc(px, py, radius, 0, Math.PI * 2);
@@ -2134,8 +2306,6 @@
         const epy = ex.y + p.vy * dist;
         ctx.save();
         ctx.globalAlpha = 1 - et;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = p.color;
         ctx.fillStyle = p.color;
         ctx.beginPath();
         ctx.arc(epx, epy, p.r * (1 - et * 0.5), 0, Math.PI * 2);
@@ -2455,6 +2625,7 @@
   function saveAdvancedSettings() {
     try {
       localStorage.setItem('qixit_adv', JSON.stringify({
+        bgTheme: $bgTheme.value,
         bgmPool,
         sfxSrcs: sfxAll.map(a => a._src),
         enabledSpriteIdxs,
@@ -2463,10 +2634,12 @@
         playerSkinIdx,
         qixSkinIdx,
         sparxSkinIdx,
+        playerSpeed,
         bonusEnabled,
         bonusSpriteIdx,
         bonusCountBase,
         qixConfig,
+        bgProceduralKeyword,
         bgSpaceQueries,
         bgArtQueries,
         bgAnimeCategories,
@@ -2490,6 +2663,7 @@
         const isSfx = sfxNames.some(n => file.startsWith(n));
         return `assets/music/${isSfx ? 'sfx' : 'bgm'}/${file}`;
       };
+      if (typeof d.bgTheme === 'string') { $bgTheme.value = d.bgTheme; fetchBgImages(d.bgTheme); }
       if (Array.isArray(d.bgmPool) && d.bgmPool.length > 0) bgmPool = d.bgmPool.map(migrateAudio);
       if (Array.isArray(d.sfxSrcs)) {
         d.sfxSrcs.forEach((src, i) => {
@@ -2503,6 +2677,7 @@
       if (typeof d.playerSkinIdx === 'number') playerSkinIdx = d.playerSkinIdx;
       if (typeof d.qixSkinIdx    === 'number') qixSkinIdx    = d.qixSkinIdx;
       if (typeof d.sparxSkinIdx  === 'number') sparxSkinIdx  = d.sparxSkinIdx;
+      if (typeof d.playerSpeed   === 'number') playerSpeed   = d.playerSpeed;
       if (typeof d.bonusEnabled   === 'boolean') bonusEnabled   = d.bonusEnabled;
       if (typeof d.bonusSpriteIdx === 'number')  bonusSpriteIdx = d.bonusSpriteIdx;
       if (typeof d.bonusCountBase === 'number')  bonusCountBase = d.bonusCountBase;
@@ -2511,8 +2686,9 @@
       if (Array.isArray(d.bgAnimeCategories) && d.bgAnimeCategories.length > 0) { bgAnimeCategories.length = 0; bgAnimeCategories.push(...d.bgAnimeCategories); }
       if (Array.isArray(d.bgAnimeCustomTags)) { bgAnimeCustomTags.length = 0; bgAnimeCustomTags.push(...d.bgAnimeCustomTags); }
       if (Array.isArray(d.bgCustomSources)   && d.bgCustomSources.length > 0)  { bgCustomSources.length = 0; bgCustomSources.push(...d.bgCustomSources); }
-      if (typeof d.bgCustomInclude === 'string') bgCustomInclude = d.bgCustomInclude;
-      if (typeof d.bgCustomExclude === 'string') bgCustomExclude = d.bgCustomExclude;
+      if (typeof d.bgCustomInclude     === 'string') bgCustomInclude     = d.bgCustomInclude;
+      if (typeof d.bgCustomExclude     === 'string') bgCustomExclude     = d.bgCustomExclude;
+      if (typeof d.bgProceduralKeyword === 'string') bgProceduralKeyword = d.bgProceduralKeyword;
       if (d.qixConfig && typeof d.qixConfig === 'object') {
         if (typeof d.qixConfig.segments  === 'number') qixConfig.segments  = d.qixConfig.segments;
         if (typeof d.qixConfig.armLen    === 'number') qixConfig.armLen    = d.qixConfig.armLen;
@@ -2781,6 +2957,50 @@
     customWrap.appendChild(makeTextRow('Exclude:', bgCustomExclude, 'e.g. person, portrait, text', v => { bgCustomExclude = v; }));
     $bgSearch.appendChild(customWrap);
 
+    // Procedural background keyword picker
+    if (typeof window.ProceduralBG !== 'undefined') {
+      const BG_KEYWORDS = [
+        'COSMOS','AURORA','OCEAN','GALAXY','FIRE','LAVA','RAIN',
+        'BUBBLES','CYBER','CITY','GRID','SPARK','DREAM','VOID',
+        'NEON','FOREST','STORM','PRISM',
+      ];
+      const procWrap = document.createElement('div');
+      const procLbl  = document.createElement('div');
+      procLbl.style.cssText = 'color:#4a7a8a;font-size:10px;letter-spacing:1.1px;text-transform:uppercase;margin-bottom:6px;';
+      procLbl.textContent = 'Procedural background — keyword';
+      const procRow = document.createElement('div');
+      procRow.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+      const procSel = document.createElement('select');
+      procSel.style.cssText = 'background:#1f2a33;border:1px solid #2b3945;color:#e7e7e7;padding:3px 6px;border-radius:6px;cursor:pointer;font-size:11px;';
+      BG_KEYWORDS.forEach(kw => {
+        const opt = document.createElement('option');
+        opt.value = kw; opt.textContent = kw;
+        if (kw === (bgProceduralKeyword || 'COSMOS').toUpperCase()) opt.selected = true;
+        procSel.appendChild(opt);
+      });
+      const procPreview = document.createElement('div');
+      procPreview.style.cssText = 'width:80px;height:60px;border-radius:6px;border:1px solid rgba(29,154,176,0.2);overflow:hidden;flex-shrink:0;';
+      function updateProcBgPreview() {
+        const kw  = procSel.value;
+        const svg = window.ProceduralBG.drawBackground(kw, 0, 160, 120);
+        procPreview.innerHTML = svg;
+        const svgEl = procPreview.querySelector('svg');
+        if (svgEl) { svgEl.style.width = '100%'; svgEl.style.height = '100%'; }
+      }
+      procSel.addEventListener('change', () => {
+        bgProceduralKeyword = procSel.value;
+        updateProcBgPreview();
+        saveAdvancedSettings();
+        if ($bgTheme.value === 'procedural') fetchBgImages('procedural');
+      });
+      procRow.appendChild(procSel);
+      procRow.appendChild(procPreview);
+      procWrap.appendChild(procLbl);
+      procWrap.appendChild(procRow);
+      $bgSearch.appendChild(procWrap);
+      updateProcBgPreview();
+    }
+
     // ── Skin selector helper (animated preview canvas + dropdown) ──────────────
     spritePreviewCanvases = [];
     function buildSkinSelector(defs, imgs, currentIdx, onchange, container, fallbackDraw) {
@@ -2835,6 +3055,31 @@
         pCtx.closePath(); pCtx.stroke();
         pCtx.restore();
       });
+
+    // Player speed slider
+    const $pSpeedCtrl = document.getElementById('player-speed-ctrl');
+    if ($pSpeedCtrl) {
+      $pSpeedCtrl.innerHTML = '';
+      const psRow = document.createElement('div');
+      psRow.style.cssText = 'display:flex;align-items:center;gap:6px;';
+      const psLbl = document.createElement('span');
+      psLbl.style.cssText = 'width:76px;flex-shrink:0;';
+      psLbl.textContent = 'Velocity';
+      const psSl = document.createElement('input');
+      psSl.type = 'range'; psSl.min = 1; psSl.max = 8; psSl.step = 0.5;
+      psSl.value = playerSpeed;
+      psSl.style.cssText = 'flex:1;accent-color:#1d9ab0;cursor:pointer;min-width:80px;';
+      const psVal = document.createElement('span');
+      psVal.style.cssText = 'width:32px;text-align:right;flex-shrink:0;color:#c8e0f0;font-size:10px;';
+      psVal.textContent = playerSpeed.toFixed(1);
+      psSl.oninput = () => {
+        playerSpeed = parseFloat(psSl.value);
+        psVal.textContent = playerSpeed.toFixed(1);
+        saveAdvancedSettings();
+      };
+      psRow.appendChild(psLbl); psRow.appendChild(psSl); psRow.appendChild(psVal);
+      $pSpeedCtrl.appendChild(psRow);
+    }
 
     // Bonus sprite selector — procedural preview: rotating star
     buildSkinSelector(ALL_BONUS_DEFS, bonusImgs, bonusSpriteIdx,

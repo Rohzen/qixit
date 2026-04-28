@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
-    "build": "node build.js"
+    "build": "node build.js",
+    "android": "node build.js && npx cap sync android"
   },
   "repository": {
     "type": "git",

@@ -149,6 +149,7 @@
         <div class="opt-row">
           <label class="vol-ctrl">Background
             <select id="bg-theme">
+              <option value="procedural" selected>Procedural</option>
               <option value="local">Local</option>
               <option value="landscape">Landscape</option>
               <option value="space">Space</option>
@@ -191,8 +192,9 @@
             <div id="sfx-assign-list" style="display:flex;flex-direction:column;gap:8px"></div>
           </div>
           <div class="adv-section">
-            <div class="adv-title">&#128100; Player Sprite</div>
+            <div class="adv-title">&#128100; Player Sprite & Speed</div>
             <div id="player-skin-list"></div>
+            <div id="player-speed-ctrl" style="margin-top:8px"></div>
           </div>
           <div class="adv-section">
             <div class="adv-title">&#127776; Background Images</div>
@@ -247,6 +249,14 @@
               <button class="btn" id="cache-clear-btn">&#128465; Clear Cache</button>
               <button class="btn" id="cache-prefetch-btn">&#11015; Prefetch All Themes</button>
               <span id="cache-adv-status"></span>
+            </div>
+          </div>
+          <div class="adv-section">
+            <div class="adv-title">&#128241; Android Defaults</div>
+            <div style="font-size:10px;color:#4a7a8a;margin-bottom:8px">Copy current settings as factory defaults for Android builds. Paste the output into <code style="color:#7ec8e3">android-defaults.json</code>, then run <code style="color:#7ec8e3">node build.js</code>.</div>
+            <div class="adv-row-btns">
+              <button class="btn" id="export-android-defaults-btn">&#128203; Copy Android Defaults</button>
+              <span id="export-android-status"></span>
             </div>
           </div>
         </div>
@@ -529,6 +539,7 @@
 }
 </script>
 
+<script src="ProceduralBG.js"></script>
 <script>
 (() => {
   // --- Asset manifest: fetch live from server, fall back to embedded JSON ---
@@ -569,8 +580,7 @@
   const CELL = 8;                    // grid cell size (pixels)
   const COLS = Math.floor(W / CELL);
   const ROWS = Math.floor(H / CELL);
-  const SPEED = 3;                   // player speed in px/frame
-  const DRAW_SPEED = 3;              // speed while drawing
+  let playerSpeed = 3;               // player speed in px/frame
   const ENEMY_SPEED = 2.2;
   const SPARX_SPEED = 10;            // frames per step for Sparx
   function levelTarget() { return Math.min(75 + Math.floor((level - 1) * 1.5), 90); }
@@ -779,6 +789,19 @@
       $bgStatus.className = '';
       return;
     }
+    if (theme === 'procedural') {
+      if (typeof window.ProceduralBG === 'undefined') {
+        customImages = null;
+        $bgStatus.textContent = 'ProceduralBG unavailable';
+        return;
+      }
+      const kw = (bgProceduralKeyword || 'COSMOS').toUpperCase();
+      customImages = null;
+      $bgStatus.textContent = 'Procedural · ' + kw;
+      $bgStatus.className = '';
+      if (!menuActive) loadLevelImage();
+      return;
+    }
     const cached = loadBgCache(theme);
     if (cached) {
       customImages = cached;
@@ -979,6 +1002,7 @@
   let bgCustomSources   = [...BG_CUSTOM_SOURCES_DEFAULTS];
   let bgCustomInclude   = '';
   let bgCustomExclude   = '';
+  let bgProceduralKeyword = 'COSMOS';
 
   let grid, player, enemies, sparxes, score, lives, drawing, pendingDraw, keys, gameOver, tLast;
   let lastTrailC, lastTrailR, trailPath, drawStartC, drawStartR;
@@ -1020,7 +1044,7 @@
   let bonusCountBase  = 2;
   let bonusEntities   = [];
   const BONUS_SPEED    = 0.5;
-  const BONUS_PTS_BASE = 2000;
+  const BONUS_PTS_BASE = 200;
   let playerFrame = 0, playerFrameTick = 0;
   let spritePreviewCanvases = [];
   let spritePreviewInterval = null;
@@ -1146,16 +1170,21 @@
     bgLoaded = false;
     bgImage = new Image();
     bgImage.onload = () => { bgLoaded = true; };
-    if (customImages && customImages.length > 0) {
+    if ($bgTheme.value === 'procedural' && typeof window.ProceduralBG !== 'undefined') {
+      const kw = (bgProceduralKeyword || 'COSMOS').toUpperCase();
+      const svg = window.ProceduralBG.drawBackground(kw, level, 800, 600);
+      bgImage.src = 'data:image/svg+xml,' + encodeURIComponent(svg);
+      bgCredit = 'Background: ProceduralBG · ' + kw;
+    } else if (customImages && customImages.length > 0) {
       bgImage.src = customImages[(level - 1) % customImages.length]; // online theme (any level)
       const themeCredits = {
-        landscape: 'Photos: Picsum Photos (CC0)',
-        city:      'Photos: Picsum Photos (CC0)',
-        nature:    'Photos: Picsum Photos (CC0)',
-        space:     'Images: NASA Image Gallery',
-        anime:     'Art: nekos.best',
-        art:       'Art: Metropolitan Museum of Art (Public Domain)',
-        custom:    'Photos: Wikimedia Commons (CC BY-SA)',
+        landscape:  'Photos: Picsum Photos (CC0)',
+        city:       'Photos: Picsum Photos (CC0)',
+        nature:     'Photos: Picsum Photos (CC0)',
+        space:      'Images: NASA Image Gallery',
+        anime:      'Art: nekos.best',
+        art:        'Art: Metropolitan Museum of Art (Public Domain)',
+        custom:     'Photos: Wikimedia Commons (CC BY-SA)',
       };
       bgCredit = themeCredits[$bgTheme.value] || '';
     } else if ($bgTheme.value === 'local' && apodImageUrl && level % IMAGES.length === 0) {
@@ -1255,33 +1284,34 @@
   // ─────────────────────────────────────────────────────────────────────────
 
   // Draw a procedural Sparx: bright animated electric spark crawling the border
+  // Draw a procedural Sparx: white-cyan electric spark crawling the border
   function drawSparxProcedural(sx, sy, timeSec) {
-    const hue  = (timeSec * 260) % 360;
-    const hue2 = (hue + 40) % 360;
     ctx.save();
-    ctx.shadowColor = `hsl(${hue},100%,75%)`;
-    ctx.shadowBlur = 12;
-    // Animated radiating rays
-    const numRays = 6;
+    ctx.shadowColor = 'rgba(140,220,255,0.9)';
+    ctx.shadowBlur = 10;
+    // Erratic lightning-bolt rays (8 rays, irregular lengths)
+    const numRays = 8;
     for (let i = 0; i < numRays; i++) {
-      const angle  = (i / numRays) * Math.PI * 2 + timeSec * 9;
-      const rayLen = CELL * (0.7 + 0.45 * Math.abs(Math.sin(timeSec * 14 + i * 1.5)));
-      ctx.strokeStyle = `hsl(${(hue + i * 22) % 360},100%,78%)`;
-      ctx.lineWidth = 1.5;
+      const angle  = (i / numRays) * Math.PI * 2 + timeSec * 11;
+      const flicker = Math.abs(Math.sin(timeSec * 22 + i * 2.3));
+      const rayLen = CELL * (0.35 + 0.55 * flicker);
+      const bright = Math.round(75 + 20 * flicker);
+      ctx.strokeStyle = `hsl(195,90%,${bright}%)`;
+      ctx.lineWidth = 1 + flicker;
       ctx.beginPath();
       ctx.moveTo(sx, sy);
       ctx.lineTo(sx + Math.cos(angle) * rayLen, sy + Math.sin(angle) * rayLen);
       ctx.stroke();
     }
-    // Bright core
-    const coreR = CELL * (0.28 + 0.12 * Math.sin(timeSec * 20));
-    const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, coreR * 2.2);
-    grad.addColorStop(0, `hsl(${hue2},100%,98%)`);
-    grad.addColorStop(0.4, `hsl(${hue},100%,72%)`);
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    // Bright white-blue core
+    const coreR = CELL * (0.22 + 0.10 * Math.sin(timeSec * 24));
+    const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, coreR * 2);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.35, 'rgba(140,220,255,0.85)');
+    grad.addColorStop(1, 'rgba(0,80,140,0)');
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.arc(sx, sy, coreR * 2.2, 0, Math.PI * 2);
+    ctx.arc(sx, sy, coreR * 2, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -1337,14 +1367,27 @@
     c.restore();
   }
 
-  // Procedural bonus object: rotating 5-pointed star with rainbow colour
+  // Procedural bonus object: large rotating 5-pointed star with golden glow
   function drawBonusProcedural(b, timeSec) {
     ctx.save();
     ctx.translate(b.x, b.y);
-    const t    = timeSec + (b.x + b.y) * 0.003;
-    const hue  = (t * 90) % 360;
-    const outer = CELL * 0.55, inner = CELL * 0.22;
-    ctx.rotate(t * 1.2);
+    const t     = timeSec + (b.x + b.y) * 0.003;
+    const hue   = (t * 60 + 30) % 360;   // warm gold-to-rainbow cycle
+    const pulse = 0.9 + 0.1 * Math.sin(t * 3);
+    const outer = CELL * 2.0 * pulse;
+    const inner = CELL * 0.8 * pulse;
+    ctx.rotate(t * 1.0);
+
+    // Outer glow ring
+    const glow = ctx.createRadialGradient(0, 0, inner, 0, 0, outer * 1.5);
+    glow.addColorStop(0, `hsla(${hue},100%,70%,0.3)`);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(0, 0, outer * 1.5, 0, Math.PI * 2); ctx.fill();
+
+    // Star shape — filled + outlined
+    ctx.shadowColor = `hsl(${hue},100%,65%)`;
+    ctx.shadowBlur = 18;
     ctx.beginPath();
     for (let i = 0; i < 10; i++) {
       const a = (i * Math.PI) / 5 - Math.PI / 2;
@@ -1353,16 +1396,18 @@
               : ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
     }
     ctx.closePath();
-    ctx.strokeStyle = `hsl(${hue},100%,72%)`;
-    ctx.lineWidth = 1.5;
-    ctx.shadowColor = `hsl(${hue},100%,70%)`;
-    ctx.shadowBlur = 12;
+    ctx.fillStyle = `hsla(${hue},100%,58%,0.4)`;
+    ctx.fill();
+    ctx.strokeStyle = `hsl(${hue},100%,82%)`;
+    ctx.lineWidth = 2.5;
     ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(0, 0, inner * (0.8 + 0.2 * Math.sin(t * 4)), 0, Math.PI * 2);
-    ctx.strokeStyle = `hsl(${(hue + 60) % 360},100%,80%)`;
-    ctx.lineWidth = 1; ctx.shadowBlur = 6;
-    ctx.stroke();
+
+    // Bright pulsing centre
+    const cr = inner * (0.7 + 0.3 * Math.sin(t * 5));
+    ctx.beginPath(); ctx.arc(0, 0, cr, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${(hue + 50) % 360},100%,88%,0.75)`;
+    ctx.shadowBlur = 10;
+    ctx.fill();
     ctx.restore();
   }
 
@@ -1412,7 +1457,7 @@
 
 
   function updatePlayer(){
-    const speed = drawing ? DRAW_SPEED : SPEED;
+    const speed = playerSpeed;
     player.vx = (keys.has('ArrowRight')? speed:0) + (keys.has('ArrowLeft')? -speed:0);
     player.vy = (keys.has('ArrowDown') ? speed:0) + (keys.has('ArrowUp')   ? -speed:0);
 
@@ -1422,15 +1467,44 @@
     let pxNext = player.x + player.vx;
     let pyNext = player.y + player.vy;
 
-    // Restrict movement: block FILLED (cleared area) always; block EMPTY unless drawing
-    if (!drawing) {
-      const cCurr = Math.round(player.x / CELL - 0.5);
-      const rCurr = Math.round(player.y / CELL - 0.5);
-      const cNext = Math.round(pxNext / CELL - 0.5);
-      const rNext = Math.round(pyNext / CELL - 0.5);
-      const blockCell = (cell) => cell === FILLED || (!keys.has(' ') && cell === EMPTY);
-      if (inside(cNext, rCurr) && blockCell(grid[rCurr][cNext])) pxNext = player.x;
-      if (inside(cCurr, rNext) && blockCell(grid[rNext][cCurr])) pyNext = player.y;
+    // Restrict movement physically using bounding box
+    {
+      const r = CELL / 2 - 0.1; // Player radius
+      const blockCell = (c, r) => !inside(c, r) || grid[r][c] === FILLED || (!keys.has(' ') && grid[r][c] === EMPTY);
+      
+      // Test X
+      if (player.vx > 0) {
+        const cRight = Math.floor((pxNext + r) / CELL);
+        const rTop = Math.floor((player.y - r) / CELL);
+        const rBottom = Math.floor((player.y + r) / CELL);
+        if (blockCell(cRight, rTop) || blockCell(cRight, rBottom)) {
+          pxNext = cRight * CELL - CELL/2; player.vx = 0;
+        }
+      } else if (player.vx < 0) {
+        const cLeft = Math.floor((pxNext - r) / CELL);
+        const rTop = Math.floor((player.y - r) / CELL);
+        const rBottom = Math.floor((player.y + r) / CELL);
+        if (blockCell(cLeft, rTop) || blockCell(cLeft, rBottom)) {
+          pxNext = (cLeft + 1) * CELL + CELL/2; player.vx = 0;
+        }
+      }
+      
+      // Test Y
+      if (player.vy > 0) {
+        const cLeft = Math.floor((pxNext - r) / CELL);
+        const cRight = Math.floor((pxNext + r) / CELL);
+        const rBottom = Math.floor((pyNext + r) / CELL);
+        if (blockCell(cLeft, rBottom) || blockCell(cRight, rBottom)) {
+          pyNext = rBottom * CELL - CELL/2; player.vy = 0;
+        }
+      } else if (player.vy < 0) {
+        const cLeft = Math.floor((pxNext - r) / CELL);
+        const cRight = Math.floor((pxNext + r) / CELL);
+        const rTop = Math.floor((pyNext - r) / CELL);
+        if (blockCell(cLeft, rTop) || blockCell(cRight, rTop)) {
+          pyNext = (rTop + 1) * CELL + CELL/2; player.vy = 0;
+        }
+      }
     }
 
     // Arm pendingDraw when space is pressed while on the border wall
@@ -1627,9 +1701,21 @@
     }
     if (regions.length === 0) return;
 
+    // Detect enemies trapped inside the filled region
+    let debugText = `trailCells: ${trailCells.length}\nregions: ${regions.length}\n`;
+    console.log(`[carveArea] trailCells: ${trailCells.length}`);
+    console.log(`[carveArea] regions found: ${regions.length}`);
+    regions.forEach((r, i) => {
+      console.log(`  Region ${i}: size=${r.cells.length}, touchesEnemy=${r.touchesEnemy}`);
+      debugText += `  R${i}: size=${r.cells.length}, enemy=${r.touchesEnemy}\n`;
+    });
+    
     // Fill the smallest region; if it contains an enemy, that enemy is trapped and explodes
     regions.sort((a,b) => a.cells.length - b.cells.length);
-    let choice = regions[0];
+    let choice = regions.length > 1 ? regions[0] : { cells: [] };
+    console.log(`[carveArea] choice size: ${choice.cells.length}`);
+    debugText += `choice size: ${choice.cells.length}\n`;
+    
     if (!choice) return;
 
     // Detect enemies trapped inside the filled region
@@ -1638,7 +1724,7 @@
       const re = Math.round(e.y / CELL - 0.5);
       if (choice.cells.some(([fcx, fcy]) => fcx === ce && fcy === re)) {
         triggerEnemyExplosion(e.x, e.y);
-        score += 1000 * level;
+        score += 100 * level;
         enemies.splice(enemies.indexOf(e), 1);
       }
     }
@@ -1658,19 +1744,53 @@
       }
     }
 
-    for (const [x,y] of choice.cells){ grid[y][x]=FILLED; score += 10; }
+    for (const [x,y] of choice.cells){ grid[y][x]=FILLED; score += 1; }
 
     // Convert remaining trail to wall
     for (const [x,y] of trailCells) grid[y][x]=WALL;
+
+    // Auto-fill any EMPTY regions now completely surrounded by FILLED cells
+    // (no adjacent WALL = unreachable by player; leave enemies/Qix out of scope since
+    // these pockets can only form after all enemies were already excluded by carveArea)
+    {
+      const seen = new Set();
+      for (let ry = 0; ry < ROWS; ry++) {
+        for (let rx = 0; rx < COLS; rx++) {
+          if (grid[ry][rx] !== EMPTY || seen.has(rx + ',' + ry)) continue;
+          const region = [], queue = [[rx, ry]];
+          let hasWall = false;
+          seen.add(rx + ',' + ry);
+          while (queue.length) {
+            const [cx, cy] = queue.shift();
+            region.push([cx, cy]);
+            for (const [dx, dy] of neighbors) {
+              const nx = cx + dx, ny = cy + dy;
+              if (!inside(nx, ny)) { hasWall = true; continue; }
+              if (grid[ny][nx] === WALL) { hasWall = true; continue; }
+              if (grid[ny][nx] !== EMPTY || seen.has(nx + ',' + ny)) continue;
+              seen.add(nx + ',' + ny); queue.push([nx, ny]);
+            }
+          }
+          if (!hasWall) {
+            console.log(`[carveArea] auto-fill triggered for region of size ${region.length}`);
+            debugText += `auto-fill: ${region.length}\n`;
+            for (const [fx, fy] of region) { grid[fy][fx] = FILLED; score += 1; }
+          }
+        }
+      }
+    }
 
     playSFX(sfxClaim);
 
     // Score and filled percent
     updateHUD();
+    console.log(`[carveArea] percentFilled after carve: ${percentFilled()}%`);
+    debugText += `percentFilled: ${percentFilled()}%\n`;
+    window.lastCarveDebug = debugText;
 
     // Level complete check
     if (percentFilled() >= levelTarget()) {
-      score += level * 1000; // level completion bonus
+      score += level * 100; // level completion bonus
       updateHUD();
       levelComplete = true; levelCompleteTime = performance.now();
       stopBGM();
@@ -1759,7 +1879,8 @@
       '\n col: ' + cc + '  row: ' + rr +
       '\n vx: ' + player.vx.toFixed(2) + '  vy: ' + player.vy.toFixed(2) +
       '\n onWall: ' + (player.onWall ? 'yes' : 'no') +
-      '\n drawing: ' + (drawing ? 'yes' : 'no');
+      '\n drawing: ' + (drawing ? 'yes' : 'no') +
+      '\n\n--- CARVE LOG ---\n' + (window.lastCarveDebug || 'No areas carved yet');
   }
 
   // --- Render ---
@@ -1857,7 +1978,7 @@
         // Procedural animated glowing rhomboid
         const t = performance.now() / 1000;
         const pulse = 1 + 0.18 * Math.sin(t * 5);
-        const r = CELL * 0.72 * pulse;
+        const r = CELL * 1.4 * pulse;
         const [rc, gc, bc] = drawing ? [244, 211, 94] : [231, 111, 81];
         ctx.save();
         ctx.shadowColor = `rgb(${rc},${gc},${bc})`;
@@ -2216,6 +2337,7 @@
   function saveAdvancedSettings() {
     try {
       localStorage.setItem('qixit_adv', JSON.stringify({
+        bgTheme: $bgTheme.value,
         bgmPool,
         sfxSrcs: sfxAll.map(a => a._src),
         enabledSpriteIdxs,
@@ -2228,6 +2350,7 @@
         bonusSpriteIdx,
         bonusCountBase,
         qixConfig,
+        playerSpeed,
         bgSpaceQueries,
         bgArtQueries,
         bgAnimeCategories,
@@ -2235,6 +2358,7 @@
         bgCustomSources,
         bgCustomInclude,
         bgCustomExclude,
+        bgProceduralKeyword,
       }));
     } catch(_) {}
   }
@@ -2251,6 +2375,7 @@
         const isSfx = sfxNames.some(n => file.startsWith(n));
         return `assets/music/${isSfx ? 'sfx' : 'bgm'}/${file}`;
       };
+      if (typeof d.bgTheme === 'string') { $bgTheme.value = d.bgTheme; fetchBgImages(d.bgTheme); }
       if (Array.isArray(d.bgmPool) && d.bgmPool.length > 0) bgmPool = d.bgmPool.map(migrateAudio);
       if (Array.isArray(d.sfxSrcs)) {
         d.sfxSrcs.forEach((src, i) => {
@@ -2267,13 +2392,15 @@
       if (typeof d.bonusEnabled   === 'boolean') bonusEnabled   = d.bonusEnabled;
       if (typeof d.bonusSpriteIdx === 'number')  bonusSpriteIdx = d.bonusSpriteIdx;
       if (typeof d.bonusCountBase === 'number')  bonusCountBase = d.bonusCountBase;
+      if (typeof d.playerSpeed    === 'number')  playerSpeed    = d.playerSpeed;
       if (Array.isArray(d.bgSpaceQueries)    && d.bgSpaceQueries.length > 0)    { bgSpaceQueries.length = 0;    bgSpaceQueries.push(...d.bgSpaceQueries); }
       if (Array.isArray(d.bgArtQueries)      && d.bgArtQueries.length > 0)      { bgArtQueries.length = 0;      bgArtQueries.push(...d.bgArtQueries); }
       if (Array.isArray(d.bgAnimeCategories) && d.bgAnimeCategories.length > 0) { bgAnimeCategories.length = 0; bgAnimeCategories.push(...d.bgAnimeCategories); }
       if (Array.isArray(d.bgAnimeCustomTags)) { bgAnimeCustomTags.length = 0; bgAnimeCustomTags.push(...d.bgAnimeCustomTags); }
       if (Array.isArray(d.bgCustomSources)   && d.bgCustomSources.length > 0)  { bgCustomSources.length = 0; bgCustomSources.push(...d.bgCustomSources); }
-      if (typeof d.bgCustomInclude === 'string') bgCustomInclude = d.bgCustomInclude;
-      if (typeof d.bgCustomExclude === 'string') bgCustomExclude = d.bgCustomExclude;
+      if (typeof d.bgCustomInclude     === 'string') bgCustomInclude     = d.bgCustomInclude;
+      if (typeof d.bgCustomExclude     === 'string') bgCustomExclude     = d.bgCustomExclude;
+      if (typeof d.bgProceduralKeyword === 'string') bgProceduralKeyword = d.bgProceduralKeyword;
       if (d.qixConfig && typeof d.qixConfig === 'object') {
         if (typeof d.qixConfig.segments  === 'number') qixConfig.segments  = d.qixConfig.segments;
         if (typeof d.qixConfig.armLen    === 'number') qixConfig.armLen    = d.qixConfig.armLen;
@@ -2542,6 +2669,50 @@
     customWrap.appendChild(makeTextRow('Exclude:', bgCustomExclude, 'e.g. person, portrait, text', v => { bgCustomExclude = v; }));
     $bgSearch.appendChild(customWrap);
 
+    // Procedural background keyword picker
+    if (typeof window.ProceduralBG !== 'undefined') {
+      const BG_KEYWORDS = [
+        'COSMOS','AURORA','OCEAN','GALAXY','FIRE','LAVA','RAIN',
+        'BUBBLES','CYBER','CITY','GRID','SPARK','DREAM','VOID',
+        'NEON','FOREST','STORM','PRISM',
+      ];
+      const procWrap = document.createElement('div');
+      const procLbl  = document.createElement('div');
+      procLbl.style.cssText = 'color:#4a7a8a;font-size:10px;letter-spacing:1.1px;text-transform:uppercase;margin-bottom:6px;';
+      procLbl.textContent = 'Procedural background — keyword';
+      const procRow = document.createElement('div');
+      procRow.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+      const procSel = document.createElement('select');
+      procSel.style.cssText = 'background:#1f2a33;border:1px solid #2b3945;color:#e7e7e7;padding:3px 6px;border-radius:6px;cursor:pointer;font-size:11px;';
+      BG_KEYWORDS.forEach(kw => {
+        const opt = document.createElement('option');
+        opt.value = kw; opt.textContent = kw;
+        if (kw === (bgProceduralKeyword || 'COSMOS').toUpperCase()) opt.selected = true;
+        procSel.appendChild(opt);
+      });
+      const procPreview = document.createElement('div');
+      procPreview.style.cssText = 'width:80px;height:60px;border-radius:6px;border:1px solid rgba(29,154,176,0.2);overflow:hidden;flex-shrink:0;';
+      function updateProcBgPreview() {
+        const kw  = procSel.value;
+        const svg = window.ProceduralBG.drawBackground(kw, 0, 160, 120);
+        procPreview.innerHTML = svg;
+        const svgEl = procPreview.querySelector('svg');
+        if (svgEl) { svgEl.style.width = '100%'; svgEl.style.height = '100%'; }
+      }
+      procSel.addEventListener('change', () => {
+        bgProceduralKeyword = procSel.value;
+        updateProcBgPreview();
+        saveAdvancedSettings();
+        if ($bgTheme.value === 'procedural') fetchBgImages('procedural');
+      });
+      procRow.appendChild(procSel);
+      procRow.appendChild(procPreview);
+      procWrap.appendChild(procLbl);
+      procWrap.appendChild(procRow);
+      $bgSearch.appendChild(procWrap);
+      updateProcBgPreview();
+    }
+
     // ── Skin selector helper (animated preview canvas + dropdown) ──────────────
     spritePreviewCanvases = [];
     function buildSkinSelector(defs, imgs, currentIdx, onchange, container, fallbackDraw) {
@@ -2596,6 +2767,29 @@
         pCtx.closePath(); pCtx.stroke();
         pCtx.restore();
       });
+
+    // Player speed slider
+    const $pSpeedCtrl = document.getElementById('player-speed-ctrl');
+    $pSpeedCtrl.innerHTML = '';
+    const psRow = document.createElement('div');
+    psRow.style.cssText = 'display:flex;align-items:center;gap:6px;';
+    const psLbl = document.createElement('span');
+    psLbl.style.cssText = 'width:76px;flex-shrink:0;';
+    psLbl.textContent = 'Velocity';
+    const psSl = document.createElement('input');
+    psSl.type = 'range'; psSl.min = 1; psSl.max = 8; psSl.step = 0.5;
+    psSl.value = playerSpeed;
+    psSl.style.cssText = 'flex:1;accent-color:#1d9ab0;cursor:pointer;min-width:80px;';
+    const psVal = document.createElement('span');
+    psVal.style.cssText = 'width:32px;text-align:right;flex-shrink:0;color:#c8e0f0;font-size:10px;';
+    psVal.textContent = playerSpeed.toFixed(1);
+    psSl.oninput = () => {
+      playerSpeed = parseFloat(psSl.value);
+      psVal.textContent = playerSpeed.toFixed(1);
+      saveAdvancedSettings();
+    };
+    psRow.appendChild(psLbl); psRow.appendChild(psSl); psRow.appendChild(psVal);
+    $pSpeedCtrl.appendChild(psRow);
 
     // Bonus sprite selector — procedural preview: rotating star
     buildSkinSelector(ALL_BONUS_DEFS, bonusImgs, bonusSpriteIdx,
@@ -2816,6 +3010,21 @@
         await fetchBgImages(t);
       }
       $cacheStatus.textContent = 'All themes prefetched.';
+    };
+
+    // Android defaults export
+    document.getElementById('export-android-defaults-btn').onclick = () => {
+      const $st = document.getElementById('export-android-status');
+      saveAdvancedSettings();
+      const raw = localStorage.getItem('qixit_adv');
+      if (!raw) { $st.textContent = 'No settings saved yet.'; return; }
+      try {
+        const pretty = JSON.stringify(JSON.parse(raw), null, 2);
+        navigator.clipboard.writeText(pretty).then(() => {
+          $st.textContent = 'Copied! Paste into android-defaults.json';
+          setTimeout(() => { $st.textContent = ''; }, 4000);
+        });
+      } catch(_) { $st.textContent = 'Copy failed — check browser permissions.'; }
     };
   }
   // ─────────────────────────────────────────────────────────────────────────

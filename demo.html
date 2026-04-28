@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ProceduralSprite Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0d1117;
+      color: #c8d6e0;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+    h1 { text-align: center; font-size: 1.5rem; letter-spacing: 0.06em; margin-bottom: 0.2rem; }
+    .subtitle { text-align: center; color: #4a6070; font-size: 0.82rem; margin-bottom: 2rem; }
+
+    .controls {
+      display: flex; flex-wrap: wrap; gap: 0.75rem;
+      justify-content: center; align-items: flex-end; margin-bottom: 1.5rem;
+    }
+    .controls label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.78rem; color: #6080a0; }
+    .controls input[type="text"],
+    .controls input[type="number"] {
+      padding: 0.45rem 0.7rem; border-radius: 6px; border: 1px solid #1e3040;
+      background: #080e14; color: #c8d6e0; font-size: 0.95rem; width: 140px;
+    }
+    button {
+      padding: 0.5rem 1.2rem; border-radius: 6px; border: 1px solid #1e3040;
+      background: #0e1e2e; color: #60b0d0; font-size: 0.9rem;
+      cursor: pointer; transition: background 0.12s;
+    }
+    button:hover { background: #1a3050; }
+    button.active { border-color: #60b0d0; color: #a0e0f0; }
+
+    .preview-wrap {
+      display: flex; flex-direction: column; align-items: center; gap: 0.6rem; margin-bottom: 2rem;
+    }
+    .preview-box {
+      border: 1px solid #1a3040; border-radius: 10px; background: #060c12;
+      padding: 8px; display: flex; align-items: center; justify-content: center;
+    }
+    .size-label { color: #3a5060; font-size: 0.78rem; }
+
+    h2 { text-align: center; margin-bottom: 0.8rem; font-size: 0.82rem;
+         color: #3a6070; letter-spacing: 0.1em; text-transform: uppercase; }
+    .gallery { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center;
+               max-width: 860px; margin: 0 auto 2.5rem; }
+
+    .chip {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      cursor: pointer; border-radius: 8px; padding: 6px;
+      border: 1.5px solid transparent; transition: border-color 0.12s, background 0.12s;
+      background: #080e14;
+    }
+    .chip:hover { background: #0e1e2e; }
+    .chip.selected { border-color: #60b0d0; }
+    .chip span { font-size: 0.68rem; color: #3a6070; letter-spacing: 0.06em; }
+
+    .seed-row { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;
+                max-width: 860px; margin: 0 auto 2rem; }
+    .seed-row .chip span { font-size: 0.6rem; }
+
+    .copy-btn { background: #0a1a10; border-color: #1a4020; color: #40a060; }
+    .copy-btn:hover { background: #0e2818; }
+  </style>
+</head>
+<body>
+  <h1>ProceduralSprite</h1>
+  <p class="subtitle">Geometric line-art avatars · transparent SVG · deterministic from keyword+seed</p>
+
+  <div class="controls">
+    <label>
+      Keyword
+      <input type="text" id="wordInput" value="CAT" maxlength="24" spellcheck="false">
+    </label>
+    <label>
+      Seed
+      <input type="number" id="seedInput" value="42" min="0" max="99999">
+    </label>
+    <label>
+      Size
+      <input type="range" id="sizeInput" min="64" max="320" value="160" step="8">
+    </label>
+    <label style="align-items:center">
+      <span id="sizeVal">160</span>px
+    </label>
+    <button id="diceBtn">🎲 Random seed</button>
+    <button class="copy-btn" id="copyBtn">⬡ Copy SVG</button>
+  </div>
+
+  <div class="preview-wrap">
+    <div class="preview-box" id="previewBox"></div>
+    <div class="size-label" id="previewLabel"></div>
+  </div>
+
+  <h2>Keyword Gallery</h2>
+  <div class="gallery" id="gallery"></div>
+
+  <h2>Variations — same keyword, different seeds</h2>
+  <div class="seed-row" id="seedRow"></div>
+
+<script src="ProceduralSprite.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  const PRESETS = [
+    'CAT','DOG','FOX','BEAR','RABBIT','BIRD','REPTILE',
+    'WOLF','TIGER','PANDA','DRAGON','EAGLE','LION','BUNNY','SATAN','ZZZZZZ',
+  ];
+
+  const wordInput  = document.getElementById('wordInput');
+  const seedInput  = document.getElementById('seedInput');
+  const sizeInput  = document.getElementById('sizeInput');
+  const sizeVal    = document.getElementById('sizeVal');
+  const previewBox = document.getElementById('previewBox');
+  const previewLbl = document.getElementById('previewLabel');
+  const gallery    = document.getElementById('gallery');
+  const seedRow    = document.getElementById('seedRow');
+  let lastSVG      = '';
+  let activeWord   = 'CAT';
+
+  function generate() {
+    const word = (wordInput.value.trim() || 'CAT').toUpperCase();
+    const seed = parseInt(seedInput.value, 10) || 0;
+    const size = parseInt(sizeInput.value, 10) || 160;
+    lastSVG = window.ProceduralSprite.drawSprite(word, seed, size);
+    previewBox.innerHTML = lastSVG;
+    previewLbl.textContent = word + ' · seed ' + seed + ' · ' + size + 'px';
+    // Update active state on gallery chips
+    gallery.querySelectorAll('.chip').forEach(el => {
+      el.classList.toggle('selected', el.dataset.word === word);
+    });
+    if (word !== activeWord) { activeWord = word; refreshSeedRow(word); }
+  }
+
+  function refreshSeedRow(word) {
+    seedRow.innerHTML = '';
+    for (let s = 0; s < 14; s++) {
+      const svg  = window.ProceduralSprite.drawSprite(word, s, 64);
+      const chip = document.createElement('div');
+      chip.className = 'chip';
+      chip.innerHTML = svg + `<span>seed ${s}</span>`;
+      chip.addEventListener('click', () => { seedInput.value = s; generate(); });
+      seedRow.appendChild(chip);
+    }
+  }
+
+  function buildGallery() {
+    PRESETS.forEach(kw => {
+      const svg  = window.ProceduralSprite.drawSprite(kw, 0, 72);
+      const chip = document.createElement('div');
+      chip.className = 'chip';
+      chip.dataset.word = kw;
+      chip.innerHTML = svg + `<span>${kw}</span>`;
+      chip.addEventListener('click', () => {
+        wordInput.value = kw;
+        generate();
+      });
+      gallery.appendChild(chip);
+    });
+  }
+
+  sizeInput.addEventListener('input', () => { sizeVal.textContent = sizeInput.value; generate(); });
+  document.getElementById('diceBtn').addEventListener('click', () => {
+    seedInput.value = Math.floor(Math.random() * 9999);
+    generate();
+  });
+  document.getElementById('copyBtn').addEventListener('click', () => {
+    navigator.clipboard.writeText(lastSVG).then(() => {
+      const btn = document.getElementById('copyBtn');
+      btn.textContent = '✓ Copied!';
+      setTimeout(() => { btn.textContent = '⬡ Copy SVG'; }, 1500);
+    });
+  });
+  wordInput.addEventListener('keydown', e => { if (e.key === 'Enter') generate(); });
+  wordInput.addEventListener('input', generate);
+
+  buildGallery();
+  generate();
+  refreshSeedRow('CAT');
+})();
+</script>
+</body>
+</html>

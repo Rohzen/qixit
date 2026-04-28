@@ -1,0 +1,73 @@
+{
+  "bgTheme": "procedural",
+  "bgmPool": [
+    "assets/music/bgm/It_s a Fashion Week!.ogg",
+    "assets/music/bgm/Spinning out.ogg",
+    "assets/music/bgm/Sweet Treats.ogg",
+    "assets/music/bgm/Temple Miniclips.ogg",
+    "assets/music/bgm/Temple.ogg",
+    "assets/music/bgm/Warmth.ogg",
+    "assets/music/bgm/Whisperer.ogg"
+  ],
+  "sfxSrcs": [
+    "assets/music/sfx/Balloon Pop 1.wav",
+    "assets/music/sfx/Suck 1V2.wav",
+    "assets/music/sfx/Bubble heavy 2.wav",
+    "assets/music/sfx/Big Egg collect 1.wav",
+    "assets/music/sfx/Level Up 2 (miniclip).ogg",
+    "assets/music/sfx/GameOver.ogg",
+    "assets/music/sfx/Victory.ogg"
+  ],
+  "enabledSpriteIdxs": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "enabledSparxIdxs": [],
+  "menuMusicSrc": "assets/music/bgm/Electric.ogg",
+  "playerSkinIdx": -1,
+  "qixSkinIdx": -1,
+  "sparxSkinIdx": -1,
+  "bonusEnabled": true,
+  "bonusSpriteIdx": 0,
+  "bonusCountBase": 4,
+  "qixConfig": {
+    "segments": 19,
+    "armLen": 7.6,
+    "rotSpeed": 2.7,
+    "lineWidth": 1.3,
+    "glowBlur": 13,
+    "colorMode": "pastel",
+    "hue": 355
+  },
+  "playerSpeed": 4,
+  "bgSpaceQueries": [
+    "nebula",
+    "galaxy",
+    "cosmos",
+    "deep space",
+    "aurora"
+  ],
+  "bgArtQueries": [
+    "impressionism",
+    "baroque painting",
+    "renaissance portrait",
+    "watercolor landscape",
+    "still life oil painting"
+  ],
+  "bgAnimeCategories": [
+    "neko",
+    "kitsune",
+    "maid"
+  ],
+  "bgAnimeCustomTags": [],
+  "bgCustomSources": [
+    "loremflickr",
+    "wikimedia"
+  ],
+  "bgCustomInclude": "futuristic,realistic, high res",
+  "bgCustomExclude": "anime",
+  "bgProceduralKeyword": "FOREST"
+}
